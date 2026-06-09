@@ -89,7 +89,8 @@ class HMI(Node):
         self.switch_auto = tk.Checkbutton(  #for switch
            self.root,
            text="automatisch",
-           variable=self.checkbox_auto
+           variable=self.checkbox_auto,
+           command=self.automatisch
            )
         self.switch_auto.grid(row=3, column=0, padx=10, pady=5, sticky="nw")   #make visiable in window
 
@@ -97,7 +98,8 @@ class HMI(Node):
         self.switch_voice_on = tk.Checkbutton(  #for switch
            self.root,
            text="voice command",
-           variable=self.checkbox_voice_on
+           variable=self.checkbox_voice_on,
+           command=self.voice_on
            )
         self.switch_voice_on.grid(row=4, column=0, padx=10, pady=5, sticky="nw")   #make visiable in window
 
@@ -142,7 +144,8 @@ class HMI(Node):
         self.switch_manual_overide = tk.Checkbutton(  #for switch
            self.root,
            text="manual override",
-           variable=self.checkbox_manual_overide
+           variable=self.checkbox_manual_overide,
+           command=self.manual_overide
            )
         self.switch_manual_overide.grid(row=9, column=0, padx=10, pady=5, sticky="nw")   #make visiable in window
 
@@ -216,6 +219,7 @@ class HMI(Node):
     def voice_on(self):   #publish voice command
         msg=Bool()
         msg.data=self.checkbox_voice_on.get()
+        print(msg)
         self.publisher_voice_on.publish(msg)
 
     def snelheid_zendt(self):
