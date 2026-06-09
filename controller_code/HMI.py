@@ -51,7 +51,7 @@ class HMI(Node):
         10   #backlog of msg to send
         )
 
-        self.publisher_manual_ovride = self.create_publisher(
+        self.publisher_manual_overide = self.create_publisher(
         Bool,    #bool for start and stop button
         'manual_overide',   #send to /start
         10   #backlog of msg to send
@@ -206,33 +206,36 @@ class HMI(Node):
     def reset(self):  #publish reset
         msg=Bool()
         msg.data=True
-        self.publisher_start_stop.publish(msg)
+        self.publisher_reset.publish(msg)
 
     def automatisch(self):  #publish automatisch
         msg=Bool()
-        msg=self.checkbox_auto.get()
-        self.publisher_automate(msg)
+        msg.data=self.checkbox_auto.get()
+        self.publisher_automate.publish(msg)
 
     def voice_on(self):   #publish voice command
         msg=Bool()
-        msg=self.checkbox_voice_on.get()
-        self.publisher_voice_on(msg)
+        msg.data=self.checkbox_voice_on.get()
+        self.publisher_voice_on.publish(msg)
 
     def snelheid_zendt(self):
-        msg=Float32
-        msg=self.number_var_snelheid.get()
-        self.publisher_snelheid(msg)
+        msg=Float32()
+        snelheid=float(self.number_var_snelheid.get())
+        msg.data=snelheid
+        self.publisher_snelheid.publish(msg)
 
     def threshold_zendt(self):
-        msg=Float32
-        msg=self.number_var_threshold.get()
-        self.publisher_threshold(msg)  
+        msg=Float32()
+        msg.data=float(self.number_var_threshold.get())
+        self.publisher_threshold.publish(msg)  
     
     def manual_overide(self):  #publish automatisch
         msg=Bool()
-        msg=self.checkbox_manual_overide.get()
-        self.publisher_manual_overide(msg)
+        msg.data=self.checkbox_manual_overide.get()
+        self.publisher_manual_overide.publish(msg)
 
+
+####### statusen aanpassen ##########
     def Grijper_close(self):
         self.status_grijper.set("grijper: close")
         self.status_label_grijper.config(bg="blue")
