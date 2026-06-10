@@ -219,7 +219,6 @@ class HMI(Node):
     def voice_on(self):   #publish voice command
         msg=Bool()
         msg.data=self.checkbox_voice_on.get()
-        print(msg)
         self.publisher_voice_on.publish(msg)
 
     def snelheid_zendt(self):
