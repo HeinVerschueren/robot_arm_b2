@@ -41,7 +41,7 @@ class VacuumGripper(Node):
         request = VacuumGripperCtrl.Request()
         request.on = False
         #request.wait = True
-s
+        
         future = self.client.call_async(request)
         rclpy.spin_until_future_complete(self, future)
 
