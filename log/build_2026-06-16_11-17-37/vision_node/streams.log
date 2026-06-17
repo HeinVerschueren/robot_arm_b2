@@ -1,0 +1,14 @@
+[0.785s] Invoking command in '/home/student/Vision/robot_arm_b2/vision_node': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/student/Vision/robot_arm_b2/build/vision_node/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/student/Vision/robot_arm_b2/install/vision_node/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../build/vision_node build --build-base /home/student/Vision/robot_arm_b2/build/vision_node/build install --record /home/student/Vision/robot_arm_b2/build/vision_node/install.log --single-version-externally-managed install_data
+[0.945s] running egg_info
+[0.955s] writing ../build/vision_node/vision_node.egg-info/PKG-INFO
+[0.955s] writing dependency_links to ../build/vision_node/vision_node.egg-info/dependency_links.txt
+[0.955s] writing entry points to ../build/vision_node/vision_node.egg-info/entry_points.txt
+[0.956s] writing requirements to ../build/vision_node/vision_node.egg-info/requires.txt
+[0.956s] writing top-level names to ../build/vision_node/vision_node.egg-info/top_level.txt
+[0.967s] reading manifest file '../build/vision_node/vision_node.egg-info/SOURCES.txt'
+[0.967s] writing manifest file '../build/vision_node/vision_node.egg-info/SOURCES.txt'
+[0.968s] running build
+[0.968s] running install
+[0.971s] running install_data
+[0.972s] error: can't copy 'model/best.pt': doesn't exist or not a regular file
+[0.985s] Invoked command in '/home/student/Vision/robot_arm_b2/vision_node' returned '1': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/student/Vision/robot_arm_b2/build/vision_node/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/student/Vision/robot_arm_b2/install/vision_node/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../build/vision_node build --build-base /home/student/Vision/robot_arm_b2/build/vision_node/build install --record /home/student/Vision/robot_arm_b2/build/vision_node/install.log --single-version-externally-managed install_data
