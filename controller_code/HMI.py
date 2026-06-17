@@ -206,7 +206,7 @@ class HMI(Node):
            )
         self.switch_manual_overide.grid(row=9, column=0, padx=10, pady=5, sticky="nw")   #make visiable in window
 
-
+############ teller tabel ########################
         self.columns = ("kubus", "balk", "maan", "ocatagon")  #naam colomen
         self.tree = ttk.Treeview(self.root, columns=self.columns, show="headings", height=1) 
         for col in self.columns:    #maakt collomen aan
@@ -215,10 +215,11 @@ class HMI(Node):
         self.tree.insert("", tk.END, values=("3", "25", "6","test"))  #hoeveelheid in kolom
         self.tree.grid(row=0, column=4, rowspan=2, padx=20, pady=5, sticky="ne")  #zorgt for rechts tabel
 
+############## status labels/camera beeld ########################
         self.status_grijper = tk.StringVar()
         self.status_grijper.set("grijper: open")
 
-        self.status_label_grijper = tk.Label(
+        self.status_label_grijper = tk.Label( #grijper status label
             self.root,
             textvariable=self.status_grijper,
             bg="gray",
@@ -230,7 +231,7 @@ class HMI(Node):
         self.status_robot = tk.StringVar()
         self.status_robot.set("robot: stand-by")
 
-        self.status_label_robot = tk.Label(
+        self.status_label_robot = tk.Label( #robot status label
             self.root,
             textvariable=self.status_robot,
             bg="orange",
@@ -239,7 +240,19 @@ class HMI(Node):
         )
         self.status_label_robot.grid(row=1, column=2, padx=20, pady=5, sticky="n")
 
-        self.camera_label = tk.Label(self.root, bg="black")
+        self.keuze_Status = tk.StringVar()
+        self.keuze_Status.set("bezig")
+
+        self.status_label_keuze = tk.Label( #keuze status label
+            self.root,
+            textvariable=self.keuze_Status,
+            bg="orange",
+            fg="white",
+            width=20
+        )
+        self.status_label_keuze.grid(row=2, column=2, padx=20, pady=5, sticky="n")
+
+        self.camera_label = tk.Label(self.root, bg="black") #voor camera beeld
         self.camera_label.grid(
             row=5,
             column=3,
@@ -248,18 +261,26 @@ class HMI(Node):
             padx=20,
             pady=10
         )
+        self.keuze_event = threading.Event()
+        
+
+############ end init #########################
+    def ros_thread(self):
+        while rclpy.ok():
+            rclpy.spin_once(self, timeout_sec=0.01)
         
 
 
-############ end init #########################
-    def ros_spin(self):
-        rclpy.spin_once(self, timeout_sec=0.01)
-        self.root.after(10, self.ros_spin)
-
     def run(self):
-        self.ros_spin()  #start ros2 node
-        self.root.mainloop()  #activeeerd HMI
+        threading.Thread(
+            target=self.ros_thread,
+            daemon=True
+        ).start()
 
+        self.root.mainloop()
+
+
+####### knoppen functies ############
     def close(self):  #stopt alles
         msg=Bool()
         msg.data=True
@@ -334,22 +355,30 @@ class HMI(Node):
     def robot_error(self):
         self.status_robot.set("robot:error")
         self.status_label_robot.config(bg="red")
+
+    def keuze_bezig(self):
+        self.keuze_Status.set("bezig")
+        self.status_label_keuze.config(bg="orange")
+
+    def keuze_maken(self):
+        self.keuze_Status.set("keuze: maken")
+        self.status_label_keuze.config(bg="green")
 ########## call baccks for subscriber ########################
     def Image_callback(self, msg):
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         self.latest_frame = frame
-        self.update_camera()
+        self.root.after(0, self.update_camera)
     
     def product_keuze_callback(self, request, response):
+       self.keuze_event.clear()
        self.keuze_active = True
        self.keuze_response = response   # tijdelijk opslaan
-       self.keuze_event = threading.Event()
-
        # GUI activeren in Tkinter thread
        self.root.after(0, self.enable_keuze_knoppen)
-
+       self.keuze_maken()  # update status label
         # wacht tot gebruiker klikt
        self.keuze_event.wait()
+       self.keuze_bezig()  # update status label
        
        return self.keuze_response
     
@@ -360,22 +389,19 @@ class HMI(Node):
         self.kubus_button.config(state="normal")
 
     def keuze_gemaakt(self, keuze):
-        if self.keuze_active:
-            self.keuze_response.success = True
-            self.keuze_response.message = keuze
-            self.keuze_event.set()
-            self.keuze_active = False
+        if not self.keuze_active:
+           return
 
+        self.keuze_response.success = True
+        self.keuze_response.message = keuze
 
+        self.keuze_active = False
+        self.keuze_event.set()
 
-        # disable knoppen
         self.maan_button.config(state="disabled")
         self.octagon_button.config(state="disabled")
         self.balk_button.config(state="disabled")
         self.kubus_button.config(state="disabled")
-
-        # laat service verder gaan
-        self.keuze_event.set()
 
 
     def update_camera(self):
