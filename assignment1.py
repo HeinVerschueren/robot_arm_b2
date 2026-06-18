@@ -9,6 +9,7 @@
 from threading import Thread
 
 import rclpy
+import time
 from rclpy.executors import MultiThreadedExecutor   
 from rclpy.node import Node
 
@@ -19,6 +20,8 @@ from my_moveit_python import srdfGroupStates
 from my_moveit_python import MovegroupHelper
 import tf_transformations
 
+from unittest.mock import MagicMock
+from geometry_msgs.msg import TransformStamped
 
 class manipulatorController(Node):
     def __init__(self, node_name):
@@ -34,10 +37,10 @@ class manipulatorController(Node):
             prefix + "joint6",
         ]
         self.base_link_name = "link_base"
-        self.end_effector_name = "link_eef"
-        self.group_name = "xarm6"
-        self.package_name = "manipulation_moveit_config"
-        self.srdf_file_name = "config/manipuation_environment.srdf"
+        self.end_effector_name = "link6" #"link_eef"
+        self.group_name = "lite6" #"xarm6"
+        self.package_name = "my_uf_moveit_config" #"manipulation_moveit_config"
+        self.srdf_file_name = "config/uf_robot.srdf" #"config/manipuation_environment.srdf"
 
         # TF setup
         self.tf_buffer = Buffer()
@@ -95,11 +98,37 @@ class manipulatorController(Node):
     def execute_app(self):
 
         # TODO 1: Move to a specific sequence of joint states
-
+        #for state in ["left", "right", "home"]:
+            #time.sleep(1.0)
+        #    self.move_to_state(state)
+        #print(self.group_states.get_joint_values("home"))
+        #print(self.joint_names)
 
         # TODO 2: Move to a specific pose
+        #translation = [0.25, 0.0, 0.25]
+        #rotation = [1.0, 0.0, 0.0, 0.0]
+        #self.move_to_pose(translation, rotation)
+
+        source_frame = "base_link"
+        print(type(source_frame), source_frame)
+        print(source_frame)
+        transform = TransformStamped()
+        transform.header.frame_id = "base_link"
+        transform.child_frame_id = "camera"
+
+        transform.transform.translation.x = 0.3
+        transform.transform.translation.y = -0.2
+        transform.transform.translation.z = 0.4
+
+        transform.transform.rotation.w = 1.0
+        transform.transform.rotation.x = 0.0
+        self.tf_buffer.lookup_transform = MagicMock(return_value=transform)
+
+        #rotation = 
+        self.move_to_tf("camera", "base_link")
 
 
+        self.move_to_state("home")
 
         pass
 
@@ -111,7 +140,7 @@ def main(args=None):
 
     # Instantiate the manipulatorController node.
     # NOTE: This must be done before creating the executor to ensure callbacks are registered correctly.
-    node = manipulatorController("assignment2")
+    node = manipulatorController("assignment1")
 
     # Create a multithreaded executor with 2 threads.
     # Allows the node to handle multiple callbacks concurrently (e.g., subscriptions, timers).
@@ -131,6 +160,7 @@ def main(args=None):
 
     # Execute the main application logic defined in the node.
     # Typically runs robot motion, computations, or control behaviors.
+    #time.sleep(5.0)
     node.execute_app()
 
     # Shutdown ROS gracefully after main logic completes.
