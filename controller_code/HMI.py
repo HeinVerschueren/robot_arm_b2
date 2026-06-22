@@ -142,6 +142,8 @@ class HMI(Node):
             ) 
         self.octagon_button.grid(row=4, column=6, padx=10, pady=5, sticky="nw")    #make visiable
 
+########## checkboxen/switches ############
+
         self.checkbox_auto = tk.BooleanVar()  #make variable for switch
         self.switch_auto = tk.Checkbutton(  #for switch
            self.root,
@@ -167,9 +169,11 @@ class HMI(Node):
             )
         self.button_exit.grid(row=10, column=0, padx=10, pady=5, sticky="nw")   #make visiable
 
+########### snelheid en threshold input ############   
+
         tk.Label(self.root, text="Snelheid (%)").grid(row=5, column=0, sticky="w")
 
-        self.number_var_snelheid = tk.IntVar()  #maakt make number varibale for hmi
+        self.number_var_snelheid = tk.StringVar()  #maakt make number varibale for hmi
         self.number_entry_snelheid = tk.Entry(
             self.root,
             textvariable=self.number_var_snelheid,
@@ -184,7 +188,7 @@ class HMI(Node):
 
         tk.Label(self.root, text="threshold (%)").grid(row=7, column=0, sticky="w")
 
-        self.number_var_threshold = tk.IntVar()  # make number varibale for hmi
+        self.number_var_threshold = tk.StringVar()  # make number varibale for hmi
         self.number_entry_threshold = tk.Entry(
             self.root,
             textvariable=self.number_var_threshold,
@@ -194,7 +198,7 @@ class HMI(Node):
         button = tk.Button(
             self.root,
             text="stuur threshold",
-            command=self.threshold_zendt)
+            command=self.threshold_zendt)  #funciton for button
         button.grid(row=8, column=1, padx=10, pady=5, sticky="nw")
 
         self.checkbox_manual_overide = tk.BooleanVar()  #make variable for switch
@@ -251,6 +255,30 @@ class HMI(Node):
             width=20
         )
         self.status_label_keuze.grid(row=2, column=2, padx=20, pady=5, sticky="n")
+
+        self.snelheid_Status = tk.StringVar()
+        self.snelheid_Status.set("snelheid:100%")
+
+        self.status_label_snelheid = tk.Label( #snelheid status label
+            self.root,
+            textvariable=self.snelheid_Status,
+            bg="LightGray",
+            fg="Black",
+            width=20
+        )
+        self.status_label_snelheid.grid(row=6, column=2, padx=20, pady=5, sticky="n")
+
+        self.threshold_Status = tk.StringVar()
+        self.threshold_Status.set("threshold:85%")
+
+        self.status_label_threshold = tk.Label( #threshold status label
+            self.root,
+            textvariable=self.threshold_Status,
+            bg="LightGray",
+            fg="Black",
+            width=20
+        )
+        self.status_label_threshold.grid(row=8, column=2, padx=20, pady=5, sticky="n")
 
         self.camera_label = tk.Label(self.root, bg="black") #voor camera beeld
         self.camera_label.grid(
@@ -316,14 +344,33 @@ class HMI(Node):
         self.publisher_voice_on.publish(msg)
 
     def snelheid_zendt(self):
+        raw_snelheid=self.number_var_snelheid.get()
+        check_snelheid=float(raw_snelheid)
+        if check_snelheid > 100:
+            snelheid=100
+        elif check_snelheid < 0:
+            snelheid=0
+        else:
+            snelheid=check_snelheid
+        snelheid_float=float(snelheid)
         msg=Float32()
-        snelheid=float(self.number_var_snelheid.get())
-        msg.data=snelheid
+        msg.data=snelheid_float
+        self.snelheid_bezig(snelheid_float)
         self.publisher_snelheid.publish(msg)
 
     def threshold_zendt(self):
+        raw_threshold=self.number_var_threshold.get()
+        check_threshold=float(raw_threshold)
+        if check_threshold > 100:
+            threshold=100
+        elif check_threshold < 0:
+            threshold=0
+        else: 
+            threshold=check_threshold
+        threshold_float=float(threshold)
         msg=Float32()
-        msg.data=float(self.number_var_threshold.get())
+        msg.data=threshold_float
+        self.threshold_bezig(threshold_float)
         self.publisher_threshold.publish(msg)  
     
     def manual_overide(self):  #publish automatisch
@@ -363,6 +410,14 @@ class HMI(Node):
     def keuze_maken(self):
         self.keuze_Status.set("keuze: maken")
         self.status_label_keuze.config(bg="green")
+
+    def snelheid_bezig(self,snelheid):
+        self.snelheid_Status.set(f"snelheid: {snelheid}%")
+        self.status_label_snelheid.config(bg="LightGray")
+
+    def threshold_bezig(self,threshold):
+        self.threshold_Status.set(f"threshold: {threshold}%")
+        self.status_label_threshold.config(bg="LightGray")
 ########## call baccks for subscriber ########################
     def Image_callback(self, msg):
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
