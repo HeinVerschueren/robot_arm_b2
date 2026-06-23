@@ -1,3 +1,5 @@
+from numpy import int32
+
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
@@ -10,11 +12,16 @@ from PIL import Image, ImageTk
 import cv2
 from cv_bridge import CvBridge
 from std_srvs.srv import Trigger
+from std_msgs.msg import Int32MultiArray
 import threading
 
 class HMI(Node):
     def __init__(self):
         super().__init__('HMI_node')
+        self.kubus_tel = 0
+        self.balk_tel = 0
+        self.maan_tel = 0
+        self.octagon_tel = 0
 
         self.publisher_start_stop = self.create_publisher(
            Bool,    #bool for start and stop button
@@ -23,50 +30,50 @@ class HMI(Node):
         )
 
         self.publisher_automate = self.create_publisher(
-           Bool,    #bool for start and stop button
-           'automate',   #send to /start
+           Bool,    #bool for automate and stop button
+           'automate',   #send to /automate
             10   #backlog of msg to send
         )
 
         self.publisher_reset = self.create_publisher(
-           Bool,    #bool for start and stop button
-           'reset',   #send to /start
+           Bool,    #bool for reset and stop button
+           'reset',   #send to /reset
            10   #backlog of msg to send
         )
 
         self.publisher_voice_on = self.create_publisher(
-            Bool,    #bool for start and stop button
-            'voice_on',   #send to /start
+            Bool,    #bool for voice on and stop button
+            'voice_on',   #send to /voice_on
             10   #backlog of msg to send
         )
 
         self.publisher_shut_down = self.create_publisher(
-            Bool,    #bool for start and stop button
-            'shut_down',   #send to /start
+            Bool,    #bool for shut down 
+            'shut_down',   #send to /shut_down
             10   #backlog of msg to send
         )
         self.publisher_snelheid = self.create_publisher(
-            Float32,    #bool for start and stop button
-            'snelheid',   #send to /start
+            Float32,    #float for snelheid
+            'snelheid',   #send to /snelheid
             10   #backlog of msg to send
         )
 
         self.publisher_threshold = self.create_publisher(
-            Float32,    #bool for start and stop button
-            'threshold',   #send to /start
+            Float32,    #float for threshold
+            'threshold',   #send to /threshold
             10   #backlog of msg to send
         )
 
         self.publisher_manual_overide = self.create_publisher(
-            Bool,    #bool for start and stop button
-             'manual_overide',   #send to /start
+            Bool,    #bool manual override
+            'manual_overide',   #send to /manual_overide
             10   #backlog of msg to send
         )
 
 ################# service
         self.product_keuze_service = self.create_service(
             Trigger,    
-             'product_keuze',   #send to /start
+             'product_keuze',   #send to /product_keuze
             self.product_keuze_callback   #backlog of msg to send
         )
 ####################### subscriber ###########################
@@ -78,6 +85,27 @@ class HMI(Node):
            '/camera_image_raw',
             self.Image_callback,
            10,
+        )
+
+        self.gripper_status_subscriber = self.create_subscription(
+            Bool,
+            '/gripper_status',
+            self.gripper_status_callback,
+            10,
+        )
+
+        self.robot_status_subscriber = self.create_subscription(
+            String,
+            '/robot_status',
+            self.robot_status_callback,
+            10,
+        )
+
+        self.teller_subscriber = self.create_subscription(
+            Int32MultiArray,
+            '/teller',
+            self.teller_callback,
+            10,
         )
 ######################## window with buttons and such  ###################
 
@@ -216,7 +244,7 @@ class HMI(Node):
         for col in self.columns:    #maakt collomen aan
             self.tree.heading(col, text=col)
             self.tree.column(col, width=80)
-        self.tree.insert("", tk.END, values=("3", "25", "6","test"))  #hoeveelheid in kolom
+        self.tree.insert("", tk.END, values=(self.kubus_tel, self.balk_tel, self.maan_tel, self.octagon_tel))  #hoeveelheid in kolom
         self.tree.grid(row=0, column=4, rowspan=2, padx=20, pady=5, sticky="ne")  #zorgt for rechts tabel
 
 ############## status labels/camera beeld ########################
@@ -290,14 +318,11 @@ class HMI(Node):
             pady=10
         )
         self.keuze_event = threading.Event()
-        
 
 ############ end init #########################
     def ros_thread(self):
         while rclpy.ok():
             rclpy.spin_once(self, timeout_sec=0.01)
-        
-
 
     def run(self):
         threading.Thread(
@@ -306,7 +331,6 @@ class HMI(Node):
         ).start()
 
         self.root.mainloop()
-
 
 ####### knoppen functies ############
     def close(self):  #stopt alles
@@ -423,6 +447,33 @@ class HMI(Node):
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         self.latest_frame = frame
         self.root.after(0, self.update_camera)
+
+    def gripper_status_callback(self, msg):
+        gripper=msg.data
+        if gripper==True:
+            self.Grijper_open()
+        elif gripper==False:
+            self.Grijper_close()
+
+    def robot_status_callback(self, msg):
+        status=msg.data
+        if status=="stand-by":
+            self.robot_stand_by()
+        elif status=="noodstop":
+            self.robot_noodstop()
+        elif status=="busy":
+            self.robot_bezig()
+        elif status=="error":
+            self.robot_error()
+
+    def teller_callback(self, msg):
+        self.kubus_tel=msg.data[0]
+        self.balk_tel=msg.data[1]
+        self.maan_tel=msg.data[2]
+        self.octagon_tel=msg.data[3]
+        self.tree.delete(*self.tree.get_children()) #verwijder oude waarden van tabel
+        self.tree.insert("", tk.END, values=
+        (self.kubus_tel, self.balk_tel, self.maan_tel, self.octagon_tel)) #hoeveelheid in kol
     
     def product_keuze_callback(self, request, response):
        self.keuze_event.clear()
