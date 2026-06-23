@@ -17,7 +17,7 @@ import time
 import collections
 from datetime import timedelta
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), 'model', 'frs_model.pt')
+MODEL_PATH = os.path.join(os.path.dirname(__file__), 'model', 'best.pt')
 LABELS = ['Maan', 'Octagon', 'Rechthoek', 'Vierkant']
 
 # --- ArUco instellingen ---
@@ -26,20 +26,18 @@ ARUCO_MARKER_ID = 0
 ARUCO_MARKER_SIZE_M = 0.048  # 48mm
 
 # --- YOLO instellingen ---
-YOLO_CONF_THRESHOLD = 0.5
+YOLO_CONF_THRESHOLD = 0.65
 YOLO_IOU_THRESHOLD = 0.45
 
 # --- Resoluties ---
-RGB_WIDTH = 1280
-RGB_HEIGHT = 720
+RGB_WIDTH = 1920
+RGB_HEIGHT = 1080
 DEPTH_WIDTH = 640
 DEPTH_HEIGHT = 368
-PUBLISH_WIDTH = 640
-PUBLISH_HEIGHT = 480
-FRAME_WIDTH = DEPTH_WIDTH
-FRAME_HEIGHT = DEPTH_HEIGHT
+PUBLISH_WIDTH = 960
+PUBLISH_HEIGHT = 540
 
-# --- Digitale zoom ---
+# --- Werkgebied ---
 WORKSPACE_SIZE_MM = 900.0
 YOLO_INPUT_SIZE = (640, 640)
 
@@ -49,18 +47,13 @@ MIN_PLAUSIBLE_HEIGHT_MM = -15.0
 MAX_PLAUSIBLE_DISTANCE_MM = WORKSPACE_SIZE_MM * 0.75
 
 DIST_COEFFS = np.zeros((5, 1), dtype=np.float64)
-
-# Kalibratie-offset: stereo depth meet systematisch te ver op deze
-# cameraafstand. Gemeten: Vierkant (10mm hoog) geeft ~13-18mm -> offset ~6mm.
-# Pas aan als de opstelling verandert (andere hoogte camera/tafel).
-HOOGTE_OFFSET_MM = 6.0
+HOOGTE_OFFSET_MM = 0.0
 
 # --- Temporele filtering ---
-# Depth-history per POSITIE-bucket (x//50, y//50) zodat objecten die
-# wisselen van label toch een consistente depth-history houden, en twee
-# aparte objecten naast elkaar niet elkaars history mengen.
-DEPTH_HISTORY_SIZE = 5
-POSITION_BUCKET_PX = 50  # pixels per bucket
+DEPTH_HISTORY_SIZE = 10
+DEPTH_OUTLIER_MAX_DELTA_MM = 20.0
+HOOGTE_HISTORY_SIZE = 8
+POSITION_BUCKET_PX = 50
 
 
 class VisionNode(Node):
@@ -89,9 +82,11 @@ class VisionNode(Node):
         self.marker_size_px = None
         self.camera_matrix = None
 
-        # Depth-history per positie-bucket
         self._depth_history = collections.defaultdict(
             lambda: collections.deque(maxlen=DEPTH_HISTORY_SIZE)
+        )
+        self._hoogte_history = collections.defaultdict(
+            lambda: collections.deque(maxlen=HOOGTE_HISTORY_SIZE)
         )
 
         self.model = None
@@ -105,6 +100,18 @@ class VisionNode(Node):
         self.pipeline_thread = threading.Thread(target=self._run_pipeline, daemon=True)
         self.pipeline_thread.start()
         self.get_logger().info('vision_node gestart.')
+
+    def _enhance_frame(self, frame):
+        lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+        l, a, b = cv2.split(lab)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        l = clahe.apply(l)
+        frame = cv2.cvtColor(cv2.merge([l, a, b]), cv2.COLOR_LAB2BGR)
+        kernel = np.array([[ 0, -1,  0],
+                           [-1,  5, -1],
+                           [ 0, -1,  0]])
+        frame = cv2.filter2D(frame, -1, kernel)
+        return frame
 
     def _detect_aruco(self, frame):
         if self.camera_matrix is None:
@@ -129,7 +136,8 @@ class VisionNode(Node):
             self.marker_size_px = np.linalg.norm(img_points[0] - img_points[1])
             self._broadcast_transform('camera_frame', 'aruco_marker', rvec, tvec)
             cv2.aruco.drawDetectedMarkers(frame, [corners[i]], np.array([[marker_id]]))
-            cv2.drawFrameAxes(frame, self.camera_matrix, DIST_COEFFS, rvec, tvec, ARUCO_MARKER_SIZE_M * 0.5)
+            cv2.drawFrameAxes(frame, self.camera_matrix, DIST_COEFFS, rvec, tvec,
+                              ARUCO_MARKER_SIZE_M * 0.5)
 
     def _broadcast_transform(self, parent_frame, child_frame, rvec, tvec):
         rot_matrix, _ = cv2.Rodrigues(rvec)
@@ -200,6 +208,10 @@ class VisionNode(Node):
         point_marker = rot_matrix.T @ (point_camera - t_marker)
         point_marker[2] = -point_marker[2]
 
+        # Flip X en Y: +X = rechts van marker, +Y = boven marker
+        #point_marker[0] = -point_marker[0]
+        point_marker[1] = -point_marker[1]
+
         object_height_mm = max(0.0, float(point_marker[2]) * 1000.0 - HOOGTE_OFFSET_MM)
         xy_distance_mm = float(np.hypot(point_marker[0], point_marker[1])) * 1000.0
 
@@ -232,39 +244,25 @@ class VisionNode(Node):
 
     @staticmethod
     def _get_rotation_angle(frame, x1, y1, x2, y2, margin=4):
-        """Berekent de rotatiehoek van het object binnen de bounding box via
-        cv2.minAreaRect op de grootste contour. Geeft een hoek in graden
-        t.o.v. de horizontale as terug (-90 tot 0 graden, OpenCV conventie).
-        Genormaliseerd naar -90..90 zodat de robot altijd de kortste draai maakt.
-        Retourneert 0.0 bij falen (geen contour gevonden)."""
         h, w = frame.shape[:2]
         cx0 = max(0, x1 - margin)
         cy0 = max(0, y1 - margin)
         cx1 = min(w, x2 + margin)
         cy1 = min(h, y2 + margin)
-
         roi = frame[cy0:cy1, cx0:cx1]
         if roi.size == 0:
             return 0.0
-
         gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
         _, mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
         if not contours:
             return 0.0
-
         largest = max(contours, key=cv2.contourArea)
         if cv2.contourArea(largest) < 20:
             return 0.0
-
         _, _, angle = cv2.minAreaRect(largest)
-
-        # OpenCV geeft hoeken in [-90, 0). Normaliseer naar [-45, 45] zodat
-        # een vierkant dat 91° gedraaid is als -1° wordt gezien (symmetrie).
         if angle < -45:
             angle += 90.0
-
         return round(angle, 1)
 
     @staticmethod
@@ -340,7 +338,7 @@ class VisionNode(Node):
         fy2 = int(crop_y0 + y2 * scale_y)
         return fx1, fy1, fx2, fy2
 
-    def _lookup_depth(self, depth_frame, x_px_rgb, y_px_rgb, window=8):
+    def _lookup_depth(self, depth_frame, x_px_rgb, y_px_rgb, window=12):
         depth_h, depth_w = depth_frame.shape[:2]
         x_px = int(x_px_rgb * depth_w / RGB_WIDTH)
         y_px = int(y_px_rgb * depth_h / RGB_HEIGHT)
@@ -355,6 +353,20 @@ class VisionNode(Node):
             )
             return None
         return float(np.median(valid))
+
+    def _update_depth_history(self, pos_key, raw_depth):
+        if raw_depth is None or raw_depth <= 0:
+            return
+        history = self._depth_history[pos_key]
+        if len(history) >= 3:
+            current_median = float(np.median(history))
+            if abs(raw_depth - current_median) > DEPTH_OUTLIER_MAX_DELTA_MM:
+                self.get_logger().debug(
+                    f'Depth outlier genegeerd: {raw_depth:.0f}mm '
+                    f'(mediaan={current_median:.0f}mm)'
+                )
+                return
+        history.append(raw_depth)
 
     def _run_pipeline(self):
         with dai.Pipeline() as pipeline:
@@ -371,6 +383,8 @@ class VisionNode(Node):
             )
 
             cam = pipeline.create(dai.node.Camera).build()
+            cam.initialControl.setManualFocus(130)
+
             queue_rgb = cam.requestOutput(
                 (RGB_WIDTH, RGB_HEIGHT), dai.ImgFrame.Type.BGR888p
             ).createOutputQueue()
@@ -410,10 +424,15 @@ class VisionNode(Node):
                 frame = rgb_data.getCvFrame()
                 depth_frame = depth_data.getFrame()
 
+                frame = self._enhance_frame(frame)
                 self._detect_aruco(frame)
 
                 if self.model is not None:
                     results, crop_info = self._run_yolo_on_crop(frame)
+
+                    crop_x0, crop_y0, scale_x, scale_y = crop_info
+                    crop_x1_lim = int(crop_x0 + YOLO_INPUT_SIZE[0] * scale_x)
+                    crop_y1_lim = int(crop_y0 + YOLO_INPUT_SIZE[1] * scale_y)
 
                     if results is not None:
                         for result in results:
@@ -426,17 +445,22 @@ class VisionNode(Node):
                                 x1, y1, x2, y2 = self._bbox_crop_to_frame(
                                     cx1, cy1, cx2, cy2, crop_info)
 
-                                x_px, y_px = self._find_centroid_in_bbox(frame, x1, y1, x2, y2)
+                                # Skip detecties buiten werkgebied
+                                bbox_cx = (x1 + x2) // 2
+                                bbox_cy = (y1 + y2) // 2
+                                if not (crop_x0 <= bbox_cx <= crop_x1_lim and
+                                        crop_y0 <= bbox_cy <= crop_y1_lim):
+                                    continue
 
-                                # Rotatiehoek berekenen via minAreaRect op contour
+                                x_px, y_px = self._find_centroid_in_bbox(frame, x1, y1, x2, y2)
                                 rotation_deg = self._get_rotation_angle(frame, x1, y1, x2, y2)
 
-                                # Depth ophalen met temporele filtering per positie-bucket
                                 pos_key = (x_px // POSITION_BUCKET_PX,
                                            y_px // POSITION_BUCKET_PX)
+
                                 raw_depth = self._lookup_depth(depth_frame, x_px, y_px)
-                                if raw_depth is not None and raw_depth > 0:
-                                    self._depth_history[pos_key].append(raw_depth)
+                                self._update_depth_history(pos_key, raw_depth)
+
                                 depth_mm = float(np.median(self._depth_history[pos_key])) \
                                     if self._depth_history[pos_key] else raw_depth
 
@@ -447,7 +471,10 @@ class VisionNode(Node):
                                 if blocked:
                                     continue
 
-                                # JSON publiceren inclusief rotatiehoek
+                                if hoogte_mm is not None:
+                                    self._hoogte_history[pos_key].append(hoogte_mm)
+                                    hoogte_mm = float(np.median(self._hoogte_history[pos_key]))
+
                                 resultaat = {
                                     'label': label,
                                     'confidence': round(confidence, 3),
@@ -470,33 +497,24 @@ class VisionNode(Node):
                                     f'rotatie={rotation_deg}°'
                                 )
 
-                                # Overlay tekenen
-                                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                                cv2.circle(frame, (x_px, y_px), 4, (0, 0, 255), -1)
-
-                                # Label + confidence boven de box
+                                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 3)
+                                cv2.circle(frame, (x_px, y_px), 6, (0, 0, 255), -1)
                                 cv2.putText(frame, f'{label} {confidence:.0%}',
-                                            (x1, y1 - 8),
-                                            cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 2)
-
-                                # Coördinaten + rotatie onder de box (twee regels)
+                                            (x1, y1 - 12),
+                                            cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 3)
                                 if depth_mm and depth_mm > 0:
                                     cv2.putText(frame,
                                                 f'x:{xm:.0f} y:{ym:.0f} h:{hoogte_mm:.0f}mm',
-                                                (x1, y2 + 14),
-                                                cv2.FONT_HERSHEY_SIMPLEX, 0.42, (0, 255, 255), 1)
+                                                (x1, y2 + 28),
+                                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
                                     cv2.putText(frame,
                                                 f'rot:{rotation_deg}deg',
-                                                (x1, y2 + 28),
-                                                cv2.FONT_HERSHEY_SIMPLEX, 0.42, (0, 200, 255), 1)
+                                                (x1, y2 + 56),
+                                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 200, 255), 2)
 
-                    # Crop-gebied (blauwe rand)
-                    crop_x0, crop_y0, scale_x, scale_y = crop_info
-                    crop_x1 = int(crop_x0 + YOLO_INPUT_SIZE[0] * scale_x)
-                    crop_y1 = int(crop_y0 + YOLO_INPUT_SIZE[1] * scale_y)
-                    cv2.rectangle(frame, (crop_x0, crop_y0), (crop_x1, crop_y1), (255, 0, 0), 1)
+                    cv2.rectangle(frame, (crop_x0, crop_y0), (crop_x1_lim, crop_y1_lim),
+                                  (255, 0, 0), 2)
 
-                # Publiceren op 640x480
                 publish_frame = cv2.resize(frame, (PUBLISH_WIDTH, PUBLISH_HEIGHT))
 
                 msg_img = Image()
@@ -510,7 +528,7 @@ class VisionNode(Node):
 
                 cv2.imshow("vision_node - camera feed", publish_frame)
                 cv2.waitKey(1)
-                time.sleep(0.5)
+                time.sleep(0.6)  # verhoogd van 0.5 → minder USB druk / VM freeze
 
 
 def main(args=None):
