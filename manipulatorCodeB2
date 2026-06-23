@@ -1,0 +1,513 @@
+#!/usr/bin/env python3
+
+# Naam Student:
+# Studentnummer:
+# Datum:
+# Verklaring: Door het inleveren van dit bestand verklaar ik dat ik deze opdracht zelfstandig heb uitgevoerd en 
+# dat ik geen code van anderen heb gebruikt. Tevens ga ik akkoord met de beoordeling van deze opdracht.
+
+from threading import Thread
+
+import rclpy
+import time
+import math
+from rclpy.executors import MultiThreadedExecutor   
+from rclpy.node import Node
+
+from tf2_ros import TransformException
+from tf2_ros.buffer import Buffer
+from tf2_ros.transform_listener import TransformListener
+from my_moveit_python import srdfGroupStates
+from my_moveit_python import MovegroupHelper
+import tf_transformations
+
+from unittest.mock import MagicMock
+from geometry_msgs.msg import TransformStamped
+from geometry_msgs.msg import PoseStamped
+
+from xarm_msgs.srv import VacuumGripperCtrl
+
+from enum import Enum
+from std_msgs.msg import Bool, Int32, String
+
+# Status van de robot
+class RobotState(Enum):
+    HOME = 0
+    wachtOpStart = 1
+    RIGHT = 2
+    wachtOpTransferFrame = 3
+    PRE_PICK = 4
+    PICK = 5
+    MOVE_OVER = 6
+    LEFT = 7
+    PLACE = 8
+    COMPLETE = 9
+    ERROR = 10
+    ESTOP = 11
+
+# Gripper classe
+class VacuumGripper(Node):
+    def __init__(self):
+        super().__init__('vacuum_gripper')
+
+        self.client = self.create_client(
+            VacuumGripperCtrl,
+            '/xarm/set_vacuum_gripper'
+        )
+
+        while not self.client.wait_for_service(timeout_sec=2.0):
+            self.get_logger().info(
+                'Waiting for vacuum gripper service...'
+            )
+
+    def close(self):
+        request = VacuumGripperCtrl.Request()
+        request.on = True
+        #request.wait = True
+
+        future = self.client.call_async(request)
+        rclpy.spin_until_future_complete(self, future)
+
+        return future.result()
+
+    def release(self):
+        request = VacuumGripperCtrl.Request()
+        request.on = False
+        #request.wait = True
+
+        future = self.client.call_async(request)
+        rclpy.spin_until_future_complete(self, future)
+
+        return future.result()
+
+# Manipulator classe
+class manipulatorController(Node):
+    def __init__(self, node_name):
+        
+        # TEST TRANSFERFRAMES VERWIJDER ECHTE TEST
+        self.TEST_MODE = True   # zet op False voor echte robot
+
+        # State van de robot init
+        self.state = RobotState.HOME
+
+        self.start_signal = False
+        self.stop_signal = False
+        self.mode_auto = True
+
+        self.estop = False
+
+        self.transfer_received = False
+        self.object_translation = None
+        self.object_rotation = None
+
+        self.target_bin = 1
+        self.bin_positions = {
+        1: [0.13, -0.275, 0.25],  # links achter
+        2: [0.13, -0.175, 0.25],  # rechts achter
+        3: [0.25, -0.275, 0.25],  # links voor
+        4: [0.25, -0.175, 0.25]}   # rechts voor
+        self.gripper = VacuumGripper()
+
+        super().__init__(node_name)
+
+        # Robot parameters
+        prefix = ""
+        self.joint_names = [
+            prefix + "joint1",
+            prefix + "joint2",
+            prefix + "joint3",
+            prefix + "joint4",
+            prefix + "joint5",
+            prefix + "joint6",
+        ]
+        self.base_link_name = "link_base"
+        self.end_effector_name = "link6" #"link_eef"
+        self.group_name = "lite6" #"xarm6"
+        self.package_name = "my_uf_moveit_config" #"manipulation_moveit_config"
+        self.srdf_file_name = "config/uf_robot.srdf" #"config/manipuation_environment.srdf"
+
+        # TF setup
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
+
+        # MoveIt helpers
+        self.group_states = srdfGroupStates(
+            self.package_name, self.srdf_file_name, self.group_name
+        )
+        self.move_group = MovegroupHelper(
+            self, self.joint_names, self.base_link_name, self.end_effector_name, self.group_name
+        )
+
+        # --- Create subscribers, publishers, clients, timers here ---
+
+        self.get_logger().info("assignment1 node has been initialized.")
+
+        # Publishers
+        self.handshake_pub = self.create_publisher(Bool, "/handshake", 10)
+
+        self.error_pub = self.create_publisher(String,"/robot_error",10)
+
+        self.cycle_complete_pub = self.create_publisher(Bool, "/cycle_complete", 10)
+
+        # Subscribers
+        self.start_sub = self.create_subscription(
+        Bool, "/start_signal", self.start_cb, 10)
+
+        self.stop_sub = self.create_subscription(
+        Bool, "/stop_signal", self.stop_cb, 10)
+
+        self.mode_sub = self.create_subscription(
+        Bool, "/robot_mode", self.mode_cb, 10)
+
+        self.bin_sub = self.create_subscription(
+        Int32, "/bin_location", self.bin_cb, 10)
+
+        self.estop_sub = self.create_subscription(
+        Bool, "/estop", self.estop_cb, 10)
+
+        self.reset_sub = self.create_subscription(
+        Bool, "/estop_reset", self.reset_cb, 10)
+
+        self.aruco_sub = self.create_subscription(
+        PoseStamped, "/aruco_pose", self.aruco_cb, 10)
+
+        # TEST TRANSFERFRAMES
+        #self.enable_fake_aruco_tf()
+        self.fake_timer = self.create_timer(1.0, self.fake_aruco_publish)
+
+    # --- Create callback functions here ---
+
+    def start_cb(self, msg):
+        self.start_signal = msg.data
+
+    def stop_cb(self, msg):
+        self.stop_signal = msg.data
+
+    def mode_cb(self, msg):
+        self.mode_auto = msg.data
+
+    def bin_cb(self, msg):
+        self.target_bin = msg.data
+
+    def estop_cb(self, msg):
+        self.estop = msg.data
+        self.state = RobotState.ESTOP
+
+    def reset_cb(self, msg):
+        if msg.data:
+            self.estop = False
+            self.state = RobotState.HOME
+
+    def aruco_cb(self, msg):
+        self.transfer_received = True
+
+        self.object_translation = [
+            msg.pose.position.x,
+            msg.pose.position.y,
+            msg.pose.position.z]
+
+        self.object_rotation = [
+            msg.pose.orientation.w,
+            msg.pose.orientation.x,
+            msg.pose.orientation.y,
+            msg.pose.orientation.z]
+
+
+    def publish_error(self, text):
+        msg = String()
+        msg.data = text
+        self.error_pub.publish(msg)
+
+    def publish_cycle_done(self):
+        msg = Bool()
+        msg.data = True
+        self.cycle_complete_pub.publish(msg)
+
+    def publish_handshake(self):
+        msg = Bool()
+        msg.data = True
+        self.handshake_pub.publish(msg)
+
+    # --- Motion primitives ------------------------------------------------
+    def move_to_state(self, state_name: str):
+        result, joint_values = self.group_states.get_joint_values(state_name)
+        if not result:
+            self.get_logger().error(f"Failed to get joint values for state '{state_name}'.")
+        self.get_logger().info(f"Moving to state '{state_name}'.")
+        self.move_group.move_to_configuration(joint_values)
+
+    def move_to_pose(self, translation, rotation):
+        self.get_logger().info(f"Moving to pose: {translation}, {rotation}")
+        self.move_group.move_to_pose(translation, rotation)
+
+    def move_to_tf(self, from_frame: str, to_frame: str):
+        try:
+            t = self.tf_buffer.lookup_transform(
+                to_frame, from_frame, rclpy.time.Time()
+            )
+            translation = [
+                t.transform.translation.x,
+                t.transform.translation.y,
+                t.transform.translation.z,
+            ]
+            rotation = [
+                t.transform.rotation.w,
+                t.transform.rotation.x,
+                t.transform.rotation.y,
+                t.transform.rotation.z,
+            ]
+            self.get_logger().info(f"Moving to transform: {from_frame} → {to_frame}")
+            self.move_to_pose(translation, rotation)
+        except TransformException as ex:
+            self.get_logger().warn(f"Could not transform {to_frame} to {from_frame}: {ex}")
+    
+
+    
+    def safe_move_to_pose(self, translation, rotation, retries=2):
+
+        for attempt in range(retries):
+
+            self.get_logger().info(f"[SAFE POSE] attempt {attempt+1}/{retries}")
+
+            self.move_to_pose(translation, rotation)
+
+            try:
+                self.move_group.moveit2.wait_until_executed()
+                self.get_logger().info("Pose motion finished")
+                return True
+
+            except Exception as e:
+                self.get_logger().warn(f"Pose motion exception: {e}")
+
+        self.get_logger().error("Pose motion permanently failed")
+        return False
+
+
+    def safe_move_to_state(self, state_name, retries=2):
+
+        for attempt in range(retries):
+
+            self.get_logger().info(f"[SAFE STATE] {state_name} attempt {attempt+1}/{retries}")
+
+            self.move_to_state(state_name)
+
+            try:
+                self.move_group.moveit2.wait_until_executed()
+                self.get_logger().info("Motion finished")
+                return True
+
+            except Exception as e:
+                self.get_logger().warn(f"Motion exception: {e}")
+
+        self.get_logger().error(f"State {state_name} failed permanently")
+        return False
+
+
+    # --- App sequence ----------------------------------------------------
+
+    def execute_app(self):
+
+        self.move_to_state("home")
+        self.state = RobotState.wachtOpStart
+
+        rate = self.create_rate(10)
+
+        while rclpy.ok():
+
+            if self.estop:
+                time.sleep(0.1)
+                continue
+
+            # ---------------- HOME / WAIT START ----------------
+            if self.state == RobotState.wachtOpStart:
+
+                if self.start_signal:
+                    self.publish_handshake()
+                    self.start_signal = False
+
+                    if not self.safe_move_to_state("right"):
+                        self.state = RobotState.HOME
+                        return
+                    self.state = RobotState.wachtOpTransferFrame
+
+            # ---------------- Wacht op transferframe----------------
+            elif self.state == RobotState.wachtOpTransferFrame:
+
+                timeout = time.time() + 5.0
+
+                while not self.transfer_received:
+
+                    if time.time() > timeout:
+                        self.publish_error("No ArUco frame received")
+                        self.move_to_state("home")
+                        self.state = RobotState.wachtOpStart
+                        break
+
+                    time.sleep(0.05)
+
+                if self.transfer_received:
+                    self.state = RobotState.PRE_PICK
+
+            # ---------------- PRE PICK ----------------
+            elif self.state == RobotState.PRE_PICK:
+
+                pre = self.object_translation.copy()
+                pre[2] += 0.02  # 20mm boven object
+
+                if not self.safe_move_to_pose(pre, self.object_rotation):
+                    self.state = RobotState.HOME
+                    return
+                self.state = RobotState.PICK
+
+            # ---------------- PICK ----------------
+            elif self.state == RobotState.PICK:
+
+                self.gripper.release()
+                self.move_to_pose(
+                    self.object_translation,
+                    self.object_rotation)
+
+                self.gripper.close()
+                self.state = RobotState.MOVE_OVER
+
+            # ---------------- MOVE OVER ----------------
+            elif self.state == RobotState.MOVE_OVER:
+                
+                for state in ["home", "left"]:
+                    self.move_to_state(state)
+                    time.sleep(0.3)
+                
+                self.state = RobotState.PLACE
+
+            # ---------------- PLACE ----------------
+            elif self.state == RobotState.PLACE:
+
+                target = self.bin_positions[self.target_bin]
+
+                self.move_to_pose(target, [1.0, 0.0, 0.0, 0.0])
+
+                self.gripper.release()
+
+                self.publish_cycle_done()
+
+                # reset aruco voor volgende cycle
+                self.transfer_received = False
+
+                # STOP LOGICA
+                if self.stop_signal:
+                    self.stop_signal = False
+                    self.move_to_state("home")
+                    self.state = RobotState.wachtOpStart
+
+                # AUTO MODE
+                elif self.mode_auto:
+
+                    for state in ["home", "right"]:
+                        self.move_to_state(state)
+                        time.sleep(0.3)
+                    self.state = RobotState.wachtOpTransferFrame
+
+                # MANUAL MODE
+                else:
+                    self.move_to_state("home")
+                    self.state = RobotState.wachtOpStart
+
+                self.transfer_received = False
+                self.object_translation = None
+                self.object_rotation = None
+
+            rate.sleep()
+
+    
+    # TEST TRANSFERFRAMES
+    def fake_aruco_publish(self):
+
+        if not self.TEST_MODE:
+            return
+
+        transform = TransformStamped()
+
+        transform.header.frame_id = "base_link"
+        transform.child_frame_id = "camera"
+
+        # positie van ArUco marker
+        transform.transform.translation.x = 0.25    # aruco marker is 0.36 in X richting
+        transform.transform.translation.y = 0.285   # aruco marker is 0.285 in Y richting
+        transform.transform.translation.z = 0.15    # aruco marker is 0 in Z richting
+
+        # 45 graden rotatie rond Z-as
+        q = tf_transformations.quaternion_from_euler(
+            0, 0, math.radians(45))
+        
+        msg = PoseStamped()
+
+        transform.transform.rotation.x = q[0]
+        transform.transform.rotation.y = q[1]
+        transform.transform.rotation.z = q[2]
+        transform.transform.rotation.w = q[3]
+
+        self.aruco_cb(msg)
+
+        # OVERRIDE TF lookup (alleen test)
+        self.tf_buffer.lookup_transform = MagicMock(
+            return_value=transform)
+
+        #self.get_logger().warn("FAKE ARUCO TF ENABLED (TEST MODE)")
+# --------------------------------------------------------------------------
+# Do not modify the main function unless necessary.
+# -------------------------------------------------------------------------
+def main(args=None):
+    rclpy.init(args=args)
+
+    # Instantiate the manipulatorController node.
+    # NOTE: This must be done before creating the executor to ensure callbacks are registered correctly.
+    node = manipulatorController("manipulatorCodeB2")
+
+    # Create a multithreaded executor with 2 threads.
+    # Allows the node to handle multiple callbacks concurrently (e.g., subscriptions, timers).
+    executor = MultiThreadedExecutor(num_threads=2)
+
+    # Add the node to the executor so it can process its callbacks.
+    executor.add_node(node)
+
+    # Start the executor in a separate background thread.
+    # Keeps the ROS event loop running while allowing the main thread to execute custom logic.
+    executor_thread = Thread(target=executor.spin, daemon=True)
+    executor_thread.start()
+
+    # Create a 1 Hz rate object and sleep once to allow initialization.
+    # Provides time for system setup (e.g., MoveIt, TF) before running main logic.
+    node.create_rate(1.0).sleep()
+
+    # Execute the main application logic defined in the node.
+    # Typically runs robot motion, computations, or control behaviors.
+    #time.sleep(5.0)
+    node.execute_app()
+
+    # Shutdown ROS gracefully after main logic completes.
+    rclpy.shutdown()
+
+    # Wait for the executor thread to exit cleanly before terminating the program.
+    executor_thread.join()
+
+
+
+if __name__ == "__main__":
+    main()
+
+
+#Dit is een ros2 programma. 
+# Kan je subscribers toevoegen voor alle functies. de robot moet als eerst in de home State staan. 
+# hier wacht de robot totdat er een signaal komt van het hoofdprogramma (hoofdprogramma is niet relevant. maak gewoon een subscriber aan.) 
+# de robot stuurt na het startsignaal een handshake terug. maak hiervoor een publisher. 
+# de robot gaat dan naar een positie toe boven een oppak plaats. als eerste de left State. 
+# vervolgens wordt er een transferframe gebruikt van een camera om een object op te pakken. 
+# als de robot geen transferframe krijgt van het hoofdprogramma stuurt het programma een error naar het hoofdprogramma. 
+# maak een subscriber voor de transferframe en een publisher voor de error. de robot gaat eerst 20 mm boven het object zweven en gaat daarna 20 mm omlaag om het object op te pakken. 
+# hierna gaat de robot over een schot heen naar de right state en vervolgens wordt het object in een bak gelegt. er zijn 4 bakken op verschillende locaties. 
+# het hoofdprogramma stuurt de locatie waar de robot naartoe moet. maak hier een subscriber voor. boven de bak laat de gripper het object los. 
+# hierna wordt een check gedaan of de robot in handmatige modus staat of auto modus. bij handmodus gaat de robot terug naar home State en bij auto gaat de robot terug naar de left State om een nieuw object op te pakken. 
+# als er een stopsignaal komt vanuit het hoofdprogramma dan loopt de robot de cyclus af en gaat daarna terug naar home State. 
+# als een cyclus is afgelopen stuurt het programma een singaal naar het hoofdprogramma. maak hiervoor een publisher.
+
+#Dit is een ros2 programma. Kan je subscribers toevoegen voor alle functies. de robot moet als eerst in de home State staan. hier wacht de robot totdat er een signaal komt van het hoofdprogramma (hoofdprogramma is niet relevant. maak gewoon een subscriber aan.) de robot stuurt na het startsignaal een handshake terug. maak hiervoor een publisher. de robot gaat dan naar een positie toe boven een oppak plaats. als eerste de left State. vervolgens wordt er een transferframe gebruikt van een camera om een object op te pakken. als de robot geen transferframe krijgt van het hoofdprogramma stuurt het programma een error naar het hoofdprogramma. maak een subscriber voor de transferframe en een publisher voor de error. de robot gaat eerst 20 mm boven het object zweven en gaat daarna 20 mm omlaag om het object op te pakken. hierna gaat de robot over een schot heen naar de right state en vervolgens wordt het object in een bak gelegt. er zijn 4 bakken op verschillende locaties. het hoofdprogramma stuurt de locatie waar de robot naartoe moet. maak hier een subscriber voor. boven de bak laat de gripper het object los. hierna wordt een check gedaan of de robot in handmatige modus staat of auto modus. bij handmodus gaat de robot terug naar home State en bij auto gaat de robot terug naar de left State om een nieuw object op te pakken. als er een stopsignaal komt vanuit het hoofdprogramma dan loopt de robot de cyclus af en gaat daarna terug naar home State. als een cyclus is afgelopen stuurt het programma een singaal naar het hoofdprogramma. maak hiervoor een publisher. de robot kan ook overschreven worden en teruggestuurd worden naar de home State. ook kan de noodstop ingedrukt worden. hiervoor moet een resetsignaal komen vannuit het hoofdprogramma.
