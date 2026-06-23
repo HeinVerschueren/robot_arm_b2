@@ -23,6 +23,22 @@ import tf_transformations
 from unittest.mock import MagicMock
 from geometry_msgs.msg import TransformStamped
 
+from enum import Enum
+
+class RobotState(Enum):
+    HOME = 0
+    wacht_START = 1
+    RIGHT = 2
+    WAIT_ARUCO = 3
+    PRE_PICK = 4
+    PICK = 5
+    MOVE_OVER = 6
+    LEFT = 7
+    PLACE = 8
+    COMPLETE = 9
+    ERROR = 10
+    ESTOP = 11
+
 class manipulatorController(Node):
     def __init__(self, node_name):
         super().__init__(node_name)
@@ -105,32 +121,45 @@ class manipulatorController(Node):
         #print(self.joint_names)
 
         # TODO 2: Move to a specific pose
-        #translation = [0.25, 0.0, 0.25]
-        #rotation = [1.0, 0.0, 0.0, 0.0]
-        #self.move_to_pose(translation, rotation)
+        # Bak links achter
+        translation = [0.13, -0.275, 0.2]
+        rotation = [1.0, 0.0, 0.0, 0.0]
+        self.move_to_pose(translation, rotation)
+        # Bak rechts achter
+        translation = [0.13, -0.175, 0.2]
+        rotation = [1.0, 0.0, 0.0, 0.0]
+        self.move_to_pose(translation, rotation)
+        # Bak links voor
+        translation = [0.25, -0.275, 0.2]
+        rotation = [1.0, 0.0, 0.0, 0.0]
+        self.move_to_pose(translation, rotation)
+        # Bak rechts voor
+        translation = [0.25, -0.175, 0.2]
+        rotation = [1.0, 0.0, 0.0, 0.0]
+        self.move_to_pose(translation, rotation)
 
-        source_frame = "base_link"
-        print(type(source_frame), source_frame)
-        print(source_frame)
-        transform = TransformStamped()
-        transform.header.frame_id = "base_link"
-        transform.child_frame_id = "camera"
 
-        transform.transform.translation.x = 0.3
-        transform.transform.translation.y = -0.2
-        transform.transform.translation.z = 0.4
+        #source_frame = "base_link"
+        #print(type(source_frame), source_frame)
+        #print(source_frame)
+        #transform = TransformStamped()
+        #transform.header.frame_id = "base_link"
+        #transform.child_frame_id = "camera"
 
-        transform.transform.rotation.w = 1.0
-        transform.transform.rotation.x = 0.0
-        self.tf_buffer.lookup_transform = MagicMock(return_value=transform)
+        #transform.transform.translation.x = 0.3
+        #transform.transform.translation.y = -0.2
+        #transform.transform.translation.z = 0.4
+
+        #transform.transform.rotation.w = 1.0
+        #transform.transform.rotation.x = 0.0
+        #self.tf_buffer.lookup_transform = MagicMock(return_value=transform)
 
         #rotation = 
-        self.move_to_tf("camera", "base_link")
+        #self.move_to_tf("camera", "base_link")
 
 
-        self.move_to_state("home")
+        #self.move_to_state("home")
 
-        pass
 
 # --------------------------------------------------------------------------
 # Do not modify the main function unless necessary.
