@@ -1,0 +1,19 @@
+[0.696s] Invoking command in '/home/student/Vision/robot_arm_b2/vision_node': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/student/Vision/robot_arm_b2/build/vision_node/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/student/Vision/robot_arm_b2/install/vision_node/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../build/vision_node build --build-base /home/student/Vision/robot_arm_b2/build/vision_node/build install --record /home/student/Vision/robot_arm_b2/build/vision_node/install.log --single-version-externally-managed install_data
+[0.852s] running egg_info
+[0.862s] writing ../build/vision_node/vision_node.egg-info/PKG-INFO
+[0.862s] writing dependency_links to ../build/vision_node/vision_node.egg-info/dependency_links.txt
+[0.863s] writing entry points to ../build/vision_node/vision_node.egg-info/entry_points.txt
+[0.863s] writing requirements to ../build/vision_node/vision_node.egg-info/requires.txt
+[0.863s] writing top-level names to ../build/vision_node/vision_node.egg-info/top_level.txt
+[0.873s] reading manifest file '../build/vision_node/vision_node.egg-info/SOURCES.txt'
+[0.874s] writing manifest file '../build/vision_node/vision_node.egg-info/SOURCES.txt'
+[0.874s] running build
+[0.874s] running install
+[0.878s] running install_data
+[0.878s] running install_egg_info
+[0.899s] removing '/home/student/Vision/robot_arm_b2/install/vision_node/lib/python3.12/site-packages/vision_node-0.0.0-py3.12.egg-info' (and everything under it)
+[0.900s] Copying ../build/vision_node/vision_node.egg-info to /home/student/Vision/robot_arm_b2/install/vision_node/lib/python3.12/site-packages/vision_node-0.0.0-py3.12.egg-info
+[0.901s] running install_scripts
+[0.976s] Installing vision_node script to /home/student/Vision/robot_arm_b2/install/vision_node/lib/vision_node
+[0.977s] writing list of installed files to '/home/student/Vision/robot_arm_b2/build/vision_node/install.log'
+[0.994s] Invoked command in '/home/student/Vision/robot_arm_b2/vision_node' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/student/Vision/robot_arm_b2/build/vision_node/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/student/Vision/robot_arm_b2/install/vision_node/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../build/vision_node build --build-base /home/student/Vision/robot_arm_b2/build/vision_node/build install --record /home/student/Vision/robot_arm_b2/build/vision_node/install.log --single-version-externally-managed install_data

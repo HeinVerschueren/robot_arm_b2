@@ -1,0 +1,492 @@
+# Vision Node - FRS Project (B2)
+# Auteur: Rens Peeters
+# Datum: 2026
+#
+# Beschrijving:
+#   ROS2 node voor objectdetectie met OAK-D camera (DepthAI v3).
+#   Gebruikt 1 ArUco marker voor pose estimation en coördinatenberekening via TF2.
+#   Publiceert detectieresultaten op topic 'detectie_resultaten' (custom message).
+#   Publiceert TF2 transforms: camera_frame -> aruco_marker -> gedetecteerde objecten.
+#
+#   TEST MODUS (zonder ArUco marker):
+#   Start met: ros2 run vision_node vision_node --ros-args -p test_modus:=true
+#   In test_modus wordt een vaste nep-transform gebruikt alsof de marker gevonden is.
+#   YOLO detectie werkt gewoon op het echte OAK-D beeld.
+#   De gepubliceerde x/y/z coördinaten zijn dan t.o.v. de nep-markerlocatie (niet realistisch).
+#
+# Vereiste packages:
+#   pip install depthai opencv-contrib-python ultralytics
+#   ros2 packages: rclpy, tf2_ros, geometry_msgs, sensor_msgs, frs_interfaces
+
+import rclpy
+from rclpy.node import Node
+
+import cv2
+import numpy as np
+import depthai as dai
+import os
+
+from tf2_ros import TransformBroadcaster
+from geometry_msgs.msg import TransformStamped
+from sensor_msgs.msg import Image
+
+# Custom message: klasse (string), x (float64), y (float64), z (float64), confidence (float32)
+from frs_interfaces.msg import DetectieResultaat
+
+# ─────────────────────────────────────────────
+# CAMERA MATRIX (pas aan na kalibratie OAK-D)
+# Dit zijn de intrinsieke parameters van de OAK-D RGB-camera.
+# Gebruik cv2.calibrateCamera() of de DepthAI kalibratie-tool om exacte waarden te krijgen.
+# Standaardwaarden voor OAK-D bij 1920x1080:
+CAMERA_MATRIX = np.array([
+    [1396.0,    0.0, 960.0],
+    [   0.0, 1396.0, 540.0],
+    [   0.0,    0.0,   1.0]
+], dtype=np.float64)
+
+DIST_COEFFS = np.zeros((4, 1), dtype=np.float64)  # Stel in na kalibratie
+# ─────────────────────────────────────────────
+
+
+class VisionNode(Node):
+
+    def __init__(self):
+        super().__init__('vision_node')
+
+        # ── Parameters ──────────────────────────────────────────────────────────
+        # Markergrootte in meters (pas aan op de fysieke marker die je afdrukt)
+        self.declare_parameter('aruco_marker_grootte_m', 0.05)   # standaard 5 cm
+        self.declare_parameter('model_pad', 'model/frs_model.blob')
+        self.declare_parameter('confidence_drempel', 0.80)
+        self.declare_parameter('aruco_id', 0)  # welk marker-ID verwacht je
+
+        # Test modus: gebruik nep-ArUco transform zodat je zonder marker kunt testen.
+        # Start met: ros2 run vision_node vision_node --ros-args -p test_modus:=true
+        self.declare_parameter('test_modus', False)
+
+        self.marker_grootte = self.get_parameter('aruco_marker_grootte_m').value
+        self.model_pad      = self.get_parameter('model_pad').value
+        self.conf_drempel   = self.get_parameter('confidence_drempel').value
+        self.aruco_id       = self.get_parameter('aruco_id').value
+        self.test_modus     = self.get_parameter('test_modus').value
+
+        if self.test_modus:
+            self.get_logger().warn(
+                'TEST MODUS ACTIEF — nep ArUco transform wordt gebruikt. '
+                'x/y/z coordinaten zijn niet realistisch zonder echte marker.'
+            )
+            # Nep rvec/tvec: marker recht voor de camera op 50 cm afstand, geen rotatie.
+            self._test_rvec = np.zeros((3, 1), dtype=np.float64)
+            self._test_tvec = np.array([[0.0], [0.0], [0.50]], dtype=np.float64)
+
+        # ── Publishers ──────────────────────────────────────────────────────────
+        self.detectie_pub = self.create_publisher(
+            DetectieResultaat,
+            'detectie_resultaten',
+            10
+        )
+        self.beeld_pub = self.create_publisher(
+            Image,
+            'camera_beelden',
+            10
+        )
+
+        # ── TF2 Broadcaster ─────────────────────────────────────────────────────
+        # Via TF2 sturen we de positie van elk object door als frame in de TF-boom.
+        # De besturings_node kan dan via TF2 de positie opvragen in het robotframe.
+        self.tf_broadcaster = TransformBroadcaster(self)
+
+        # ── ArUco detector ──────────────────────────────────────────────────────
+        self.aruco_dict   = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+        self.aruco_params = cv2.aruco.DetectorParameters()
+        self.aruco_detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.aruco_params)
+
+        # 3D hoekpunten van de marker in het markerframe (z=0 vlak)
+        half = self.marker_grootte / 2.0
+        self.marker_3d_punten = np.array([
+            [-half,  half, 0],
+            [ half,  half, 0],
+            [ half, -half, 0],
+            [-half, -half, 0]
+        ], dtype=np.float32)
+
+        # ── YOLO model (optioneel) ───────────────────────────────────────────────
+        self.yolo_actief = False
+        if os.path.exists(self.model_pad):
+            self.get_logger().info(f'YOLO model gevonden: {self.model_pad}')
+            self.yolo_actief = True
+        else:
+            self.get_logger().warn(
+                f'Geen YOLO model gevonden op {self.model_pad}. '
+                f'Alleen ArUco detectie actief.'
+            )
+
+        # ── DepthAI Pipeline opzetten ────────────────────────────────────────────
+        self.pipeline = self._maak_pipeline()
+        self.get_logger().info('Vision node gestart — wacht op OAK-D camera...')
+
+        # ── Timer voor hoofdloop ─────────────────────────────────────────────────
+        # Gebruik een timer zodat de node blijft draaien als ROS2 node
+        self.create_timer(0.033, self.verwerk_frame)  # ~30 Hz
+
+        # Interne state
+        self._device = None
+        self._rgb_queue = None
+        self._nn_queue  = None
+        self._verbind_camera()
+
+    # ────────────────────────────────────────────────────────────────────────────
+    # DepthAI v3 Pipeline
+    # ────────────────────────────────────────────────────────────────────────────
+
+    def _maak_pipeline(self):
+        """Bouw de DepthAI v3 pipeline op."""
+        pipeline = dai.Pipeline()
+
+        # RGB camera node
+        cam = pipeline.create(dai.node.Camera)
+        cam.setBoardSocket(dai.CameraBoardSocket.CAM_A)  # RGB lens
+
+        # Output: onbewerkte RGB frames naar host
+        rgb_out = pipeline.create(dai.node.XLinkOut)
+        rgb_out.setStreamName('rgb')
+        cam.video.link(rgb_out.input)
+
+        if self.yolo_actief:
+            # YOLO Neural Network node (draait op VPU van OAK-D)
+            nn = pipeline.create(dai.node.NeuralNetwork)
+            nn.setBlobPath(self.model_pad)
+            cam.video.link(nn.input)
+
+            nn_out = pipeline.create(dai.node.XLinkOut)
+            nn_out.setStreamName('nn')
+            nn.out.link(nn_out.input)
+
+        return pipeline
+
+    def _verbind_camera(self):
+        """Verbind met de OAK-D camera en open queues."""
+        try:
+            self._device     = dai.Device(self.pipeline)
+            self._rgb_queue  = self._device.getOutputQueue('rgb',  maxSize=1, blocking=False)
+            if self.yolo_actief:
+                self._nn_queue = self._device.getOutputQueue('nn', maxSize=1, blocking=False)
+            self.get_logger().info('OAK-D camera verbonden.')
+        except Exception as e:
+            self.get_logger().error(f'Camera verbinding mislukt: {e}')
+
+    # ────────────────────────────────────────────────────────────────────────────
+    # Hoofdloop — wordt elke ~33ms aangeroepen door de timer
+    # ────────────────────────────────────────────────────────────────────────────
+
+    def verwerk_frame(self):
+        """Haal frame op, voer ArUco + YOLO detectie uit, publiceer resultaten."""
+        if self._device is None or self._rgb_queue is None:
+            return
+
+        # Frame ophalen
+        rgb_frame = self._rgb_queue.tryGet()
+        if rgb_frame is None:
+            return
+
+        frame = rgb_frame.getCvFrame()  # numpy array (BGR)
+
+        # ── Publiceer raw camerabeeld ────────────────────────────────────────────
+        self._publiceer_beeld(frame)
+
+        # ── ArUco detectie (of nep-transform in test modus) ─────────────────────
+        if self.test_modus:
+            # Test modus: sla echte ArUco detectie over, gebruik vaste nep-transform.
+            # Zo kun je YOLO en TF2 testen zonder fysieke marker.
+            marker_gevonden = True
+            rvec = self._test_rvec
+            tvec = self._test_tvec
+            self._broadcast_aruco_tf(rvec, tvec)
+        else:
+            marker_gevonden, rvec, tvec = self._detecteer_aruco(frame)
+            if marker_gevonden:
+                self._broadcast_aruco_tf(rvec, tvec)
+
+        # ── YOLO detectie ────────────────────────────────────────────────────────
+        if self.yolo_actief and self._nn_queue is not None:
+            nn_data = self._nn_queue.tryGet()
+            if nn_data is not None:
+                self._verwerk_yolo(nn_data, frame, marker_gevonden, rvec, tvec)
+
+    # ────────────────────────────────────────────────────────────────────────────
+    # ArUco detectie en pose estimation
+    # ────────────────────────────────────────────────────────────────────────────
+
+    def _detecteer_aruco(self, frame):
+        """
+        Detecteer de ArUco marker in het frame.
+        Gebruik solvePnP om de 3D positie van de marker t.o.v. de camera te bepalen.
+
+        Returns:
+            gevonden (bool): True als de marker gevonden is
+            rvec (np.array): rotatievector (of None)
+            tvec (np.array): translatievector in meters (of None)
+        """
+        grijs = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        corners, ids, _ = self.aruco_detector.detectMarkers(grijs)
+
+        if ids is None:
+            return False, None, None
+
+        # Zoek het juiste marker-ID
+        for i, marker_id in enumerate(ids.flatten()):
+            if marker_id != self.aruco_id:
+                continue
+
+            # 2D hoekpunten van de gedetecteerde marker in het beeld
+            marker_2d = corners[i][0].astype(np.float32)
+
+            # solvePnP: bereken rotatie en translatie van marker t.o.v. camera
+            succes, rvec, tvec = cv2.solvePnP(
+                self.marker_3d_punten,
+                marker_2d,
+                CAMERA_MATRIX,
+                DIST_COEFFS,
+                flags=cv2.SOLVEPNP_IPPE_SQUARE
+            )
+
+            if succes:
+                self.get_logger().debug(
+                    f'Marker gevonden — afstand: {tvec[2][0]*100:.1f} cm'
+                )
+                return True, rvec, tvec
+
+        return False, None, None
+
+    # ────────────────────────────────────────────────────────────────────────────
+    # TF2 broadcasts
+    # ────────────────────────────────────────────────────────────────────────────
+
+    def _broadcast_aruco_tf(self, rvec, tvec):
+        """
+        Broadcast TF2 transform van camera_frame naar aruco_marker.
+
+        Dit legt de positie van de marker vast in de TF-boom.
+        De besturings_node kan vervolgens via TF2 de positie van objecten
+        opvragen in het robot-basisframe (world).
+        """
+        t = TransformStamped()
+        t.header.stamp    = self.get_clock().now().to_msg()
+        t.header.frame_id = 'camera_frame'   # parent: camera
+        t.child_frame_id  = 'aruco_marker'   # child:  marker
+
+        # Translatie (solvePnP geeft meters)
+        t.transform.translation.x = float(tvec[0][0])
+        t.transform.translation.y = float(tvec[1][0])
+        t.transform.translation.z = float(tvec[2][0])
+
+        # Rotatie: rotatievector → rotatiematrix → quaternion
+        rot_matrix, _ = cv2.Rodrigues(rvec)
+        q = self._rotatiematrix_naar_quaternion(rot_matrix)
+        t.transform.rotation.x = q[0]
+        t.transform.rotation.y = q[1]
+        t.transform.rotation.z = q[2]
+        t.transform.rotation.w = q[3]
+
+        self.tf_broadcaster.sendTransform(t)
+
+    def _broadcast_object_tf(self, label, index, x_m, y_m, z_m):
+        """
+        Broadcast TF2 transform van aruco_marker naar gedetecteerd object.
+
+        Elk object krijgt een eigen frame in de TF-boom, bijv. 'cilinder_0'.
+        De besturings_node kan deze frames opvragen via TF2.
+        """
+        t = TransformStamped()
+        t.header.stamp    = self.get_clock().now().to_msg()
+        t.header.frame_id = 'aruco_marker'          # positie t.o.v. de marker
+        t.child_frame_id  = f'{label}_{index}'       # bijv. 'cilinder_0'
+
+        t.transform.translation.x = x_m
+        t.transform.translation.y = y_m
+        t.transform.translation.z = z_m
+
+        # Geen rotatie voor het object zelf (gripper pakt altijd van boven)
+        t.transform.rotation.x = 0.0
+        t.transform.rotation.y = 0.0
+        t.transform.rotation.z = 0.0
+        t.transform.rotation.w = 1.0
+
+        self.tf_broadcaster.sendTransform(t)
+
+    # ────────────────────────────────────────────────────────────────────────────
+    # YOLO verwerking
+    # ────────────────────────────────────────────────────────────────────────────
+
+    def _verwerk_yolo(self, nn_data, frame, marker_gevonden, rvec, tvec):
+        """
+        Verwerk YOLO output en publiceer DetectieResultaat messages.
+
+        Als de ArUco marker gevonden is, berekent de node de 3D positie
+        van elk object t.o.v. de marker via back-projection.
+        """
+        # YOLO output inlezen (afhankelijk van modelformaat)
+        # NeuralNetwork node geeft ruwe tensor terug — pas aan op jouw model
+        try:
+            detecties = nn_data.getLayerFp16('output0')
+        except Exception:
+            self.get_logger().warn('Kon YOLO output niet lezen — controleer laagnaam.')
+            return
+
+        hoogte, breedte = frame.shape[:2]
+        detecties = np.array(detecties).reshape(-1, 6)  # [x, y, w, h, conf, cls]
+
+        teller = {}  # voor unieke frame-namen: {label: teller}
+
+        for det in detecties:
+            x_norm, y_norm, w_norm, h_norm, conf, cls_idx = det
+
+            if conf < self.conf_drempel:
+                continue
+
+            # Klasse-naam ophalen (pas klassenamen aan op jouw model)
+            klasse_namen = ['cilinder', 'hexagon', 'kubus', 'piramide']
+            cls_int = int(cls_idx)
+            if cls_int >= len(klasse_namen):
+                continue
+            label = klasse_namen[cls_int]
+
+            # Pixel-coördinaten van middelpunt bounding box
+            cx_px = int(x_norm * breedte)
+            cy_px = int(y_norm * hoogte)
+
+            # 3D positie berekenen t.o.v. ArUco marker (als marker gevonden is)
+            x_m, y_m, z_m = 0.0, 0.0, 0.0
+            if marker_gevonden:
+                x_m, y_m, z_m = self._pixel_naar_marker_coords(
+                    cx_px, cy_px, rvec, tvec
+                )
+
+            # TF2 transform broadcasten voor dit object
+            idx = teller.get(label, 0)
+            teller[label] = idx + 1
+            self._broadcast_object_tf(label, idx, x_m, y_m, z_m)
+
+            # Custom ROS2 message publiceren
+            msg = DetectieResultaat()
+            msg.klasse     = label
+            msg.x          = x_m
+            msg.y          = y_m
+            msg.z          = z_m
+            msg.confidence = float(conf)
+            self.detectie_pub.publish(msg)
+
+            self.get_logger().info(
+                f'Gedetecteerd: {label} | conf={conf:.2f} | '
+                f'pos=({x_m*100:.1f}, {y_m*100:.1f}, {z_m*100:.1f}) cm'
+            )
+
+    # ────────────────────────────────────────────────────────────────────────────
+    # Hulpfuncties
+    # ────────────────────────────────────────────────────────────────────────────
+
+    def _pixel_naar_marker_coords(self, cx_px, cy_px, rvec, tvec):
+        """
+        Bereken de 3D positie van een pixel t.o.v. de ArUco marker.
+
+        Methode: back-projection vanuit pixelcoördinaat naar het vlak z=0
+        (het tafeloppervlak, gelijk aan het markeroppervlak).
+
+        Returns:
+            x_m, y_m, z_m (float): positie in meters t.o.v. de marker
+        """
+        # Rotatiematrix en translatievector van camera naar marker
+        R, _ = cv2.Rodrigues(rvec)
+        t = tvec.flatten()
+
+        # Inverse camera matrix
+        K_inv = np.linalg.inv(CAMERA_MATRIX)
+
+        # Ray in cameraframe door het pixel
+        punt_cam = K_inv @ np.array([cx_px, cy_px, 1.0])
+
+        # Intersectie met het z=0 vlak in het markerframe
+        # punt_marker = R^T * (punt_cam * s - t)  waarbij z_marker = 0
+        R_inv = R.T
+        num   = -(R_inv @ t)[2]
+        denom = (R_inv @ punt_cam)[2]
+
+        if abs(denom) < 1e-6:
+            return 0.0, 0.0, 0.0
+
+        s = num / denom
+        punt_marker = R_inv @ (s * punt_cam - t)
+
+        return float(punt_marker[0]), float(punt_marker[1]), float(punt_marker[2])
+
+    def _rotatiematrix_naar_quaternion(self, R):
+        """
+        Zet 3x3 rotatiematrix om naar quaternion [x, y, z, w].
+        Gebruikt de Shepperd methode.
+        """
+        trace = R[0, 0] + R[1, 1] + R[2, 2]
+
+        if trace > 0:
+            s = 0.5 / np.sqrt(trace + 1.0)
+            w = 0.25 / s
+            x = (R[2, 1] - R[1, 2]) * s
+            y = (R[0, 2] - R[2, 0]) * s
+            z = (R[1, 0] - R[0, 1]) * s
+        elif R[0, 0] > R[1, 1] and R[0, 0] > R[2, 2]:
+            s = 2.0 * np.sqrt(1.0 + R[0, 0] - R[1, 1] - R[2, 2])
+            w = (R[2, 1] - R[1, 2]) / s
+            x = 0.25 * s
+            y = (R[0, 1] + R[1, 0]) / s
+            z = (R[0, 2] + R[2, 0]) / s
+        elif R[1, 1] > R[2, 2]:
+            s = 2.0 * np.sqrt(1.0 + R[1, 1] - R[0, 0] - R[2, 2])
+            w = (R[0, 2] - R[2, 0]) / s
+            x = (R[0, 1] + R[1, 0]) / s
+            y = 0.25 * s
+            z = (R[1, 2] + R[2, 1]) / s
+        else:
+            s = 2.0 * np.sqrt(1.0 + R[2, 2] - R[0, 0] - R[1, 1])
+            w = (R[1, 0] - R[0, 1]) / s
+            x = (R[0, 2] + R[2, 0]) / s
+            y = (R[1, 2] + R[2, 1]) / s
+            z = 0.25 * s
+
+        return [x, y, z, w]
+
+    def _publiceer_beeld(self, frame):
+        """Publiceer het cameraframe als sensor_msgs/Image op 'camera_beelden'."""
+        msg = Image()
+        msg.header.stamp    = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'camera_frame'
+        msg.height          = frame.shape[0]
+        msg.width           = frame.shape[1]
+        msg.encoding        = 'bgr8'
+        msg.step            = frame.shape[1] * 3
+        msg.data            = frame.tobytes()
+        self.beeld_pub.publish(msg)
+
+    def destroy_node(self):
+        """Sluit camera netjes af bij stoppen van de node."""
+        if self._device is not None:
+            self._device.close()
+        super().destroy_node()
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+# Entry point
+# ────────────────────────────────────────────────────────────────────────────────
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = VisionNode()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
