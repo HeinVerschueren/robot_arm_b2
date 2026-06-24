@@ -28,7 +28,8 @@ from geometry_msgs.msg import PoseStamped
 from xarm_msgs.srv import VacuumGripperCtrl
 
 from enum import Enum
-from std_msgs.msg import Bool, Int32, String
+from std_msgs.msg import Bool, Int32, Float32
+from std_srvs.srv import SetBool
 
 # Status van de robot
 class RobotState(Enum):
@@ -145,7 +146,7 @@ class manipulatorController(Node):
         # Publishers
         self.handshake_pub = self.create_publisher(Bool, "/handshake", 10)
 
-        self.error_pub = self.create_publisher(String,"/robot_error",10)
+        self.error_pub = self.create_publisher(Bool,"/robot_error",10)
 
         self.cycle_complete_pub = self.create_publisher(Bool, "/cycle_complete", 10)
 
@@ -170,6 +171,19 @@ class manipulatorController(Node):
 
         self.aruco_sub = self.create_subscription(
         PoseStamped, "/aruco_pose", self.aruco_cb, 10)
+
+        self.speed_scale = 0.5  # default snelheid (50%)
+
+        self.speed_sub = self.create_subscription(
+        Float32, "/speed_scale", self.speed_cb, 10)
+
+        self.geen_product_sub = self.create_subscription(
+        Bool, "/geen_product", self.geen_product_cb, 10)
+
+        # Service clients
+
+        self.call_for_product = self.create_client(SetBool, "/call_for_product")
+
 
         # TEST TRANSFERFRAMES
         #self.enable_fake_aruco_tf()
@@ -214,7 +228,7 @@ class manipulatorController(Node):
 
 
     def publish_error(self, text):
-        msg = String()
+        msg = Bool()
         msg.data = text
         self.error_pub.publish(msg)
 
@@ -227,6 +241,20 @@ class manipulatorController(Node):
         msg = Bool()
         msg.data = True
         self.handshake_pub.publish(msg)
+
+    def speed_cb(self, msg):
+        # clamp tussen 0.05 en 1.0 (veilig voor robot)
+        scale = max(0.05, min(1.0, float(msg.data)))
+
+        self.speed_scale = scale
+
+        # pas MoveIt snelheid aan
+        self.move_group.moveit2.max_velocity = scale
+        self.move_group.moveit2.max_acceleration = scale
+
+    def geen_product_cb(self, msg):
+        self.geen_product = msg.data
+        self.get_logger().info(f"Geen product status: {msg.data}")
 
     # --- Motion primitives ------------------------------------------------
     def move_to_state(self, state_name: str):
