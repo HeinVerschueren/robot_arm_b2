@@ -182,7 +182,7 @@ class manipulatorController(Node):
 
         # Service clients
         self.call_for_product = self.create_client(SetBool, "/call_for_product")
-        while not self.call_for_product.wait_for_service(timeout_sec=1.0):
+        while not self.call_for_product.wait_for_service(timeout_sec=3.0):
             self.get_logger().info("Waiting for product service...")
 
 
@@ -365,9 +365,9 @@ class manipulatorController(Node):
 
             # ---------------- HOME / WAIT START ----------------
             if self.state == RobotState.wachtOpStart:
+                self.publish_handshake()
 
                 if self.start_signal:
-                    self.publish_handshake()
                     self.start_signal = False
 
                     if not self.safe_move_to_state("right"):
