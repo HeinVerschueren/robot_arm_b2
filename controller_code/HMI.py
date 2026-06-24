@@ -142,7 +142,7 @@ class HMI(Node):
             self.root, #put it in window
             text="Maan", #text on the button
             command=lambda:   ##do function when activated
-            self.keuze_gemaakt("maan")
+            self.keuze_gemaakt("Maan")
             ) 
         self.maan_button.grid(row=4, column=3, padx=10, pady=5, sticky="nw")    #make visiable
 
@@ -150,7 +150,7 @@ class HMI(Node):
             self.root, #put it in window
             text="Kubus", #text on the button
             command=lambda:   #do function when activated
-            self.keuze_gemaakt("kubus")  #wait for user to make choice
+            self.keuze_gemaakt("Kubus")  #wait for user to make choice
             ) 
         self.kubus_button.grid(row=4, column=4, padx=10, pady=5, sticky="nw")    #make visiable
 
@@ -158,7 +158,7 @@ class HMI(Node):
             self.root, #put it in window
             text="Balk", #text on the button
             command=lambda:   #do function when activated
-            self.keuze_gemaakt("balk")  #wait for user to make choice
+            self.keuze_gemaakt("Balk")  #wait for user to make choice
             ) 
         self.balk_button.grid(row=4, column=5, padx=10, pady=5, sticky="nw")    #make visiable
 
@@ -166,7 +166,7 @@ class HMI(Node):
             self.root, #put it in window
             text="Octagon", #text on the button
             command=lambda:   #do function when activated
-            self.keuze_gemaakt("octagon")
+            self.keuze_gemaakt("Octagon")
             ) 
         self.octagon_button.grid(row=4, column=6, padx=10, pady=5, sticky="nw")    #make visiable
 
