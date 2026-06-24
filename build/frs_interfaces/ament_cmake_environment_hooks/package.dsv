@@ -1,0 +1,4 @@
+source;share/frs_interfaces/local_setup.bash
+source;share/frs_interfaces/local_setup.dsv
+source;share/frs_interfaces/local_setup.sh
+source;share/frs_interfaces/local_setup.zsh

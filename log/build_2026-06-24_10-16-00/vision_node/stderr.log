@@ -1,0 +1,5 @@
+  File "/home/student/Vision/robot_arm_b2/install/vision_node/lib/python3.12/site-packages/vision_node/vision_node.py", line 489
+    s       stereo.setLeftRightCheck(True)
+            ^^^^^^
+SyntaxError: invalid syntax
+

@@ -1,0 +1,22 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from frs_interfaces/msg/DetectieResultaat.msg
+// generated code does not contain a copyright notice
+
+
+module frs_interfaces {
+  module msg {
+    struct DetectieResultaat {
+      string klasse;
+
+      float confidence;
+
+      float x;
+
+      float y;
+
+      float z;
+
+      float rotatie;
+    };
+  };
+};
