@@ -13,6 +13,7 @@ import re
 import tf2_ros
 from geometry_msgs.msg import PointStamped
 import math
+import time
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.callback_groups import ReentrantCallbackGroup
 
@@ -250,14 +251,17 @@ class Controller(Node):
         self.HMI_camera_publisher.publish(msg)  # Publish the image to the HMI camera topic
 
     def object_detectie_callback(self, msg):
-        print("call racched")
-        self.object_resultaat = json.loads(msg.data)
-        print(f"{self.object_resultaat}")
+        data = json.loads(msg.data)
+        # Zorg altijd voor een lijst, of de node nu een dict of lijst stuurt
+        if isinstance(data, dict):
+            self.object_resultaat = [data]
+        else:
+            self.object_resultaat = data
 
     def handshake_callback(self, msg):
         self.tekst = msg.data
         self.robot_status="stand-by"
-        self.stuur_product_locatie()
+        self.robot_status_verzenden()
 
     def robot_error_callback(self, msg):    
         self.tekst = msg.data
@@ -268,9 +272,7 @@ class Controller(Node):
             self.robot_status="stand-by"
 
     def call_call_for_product(self,request,response):
-        print("2de keer")
         self.product_response=response
-        print('reached 1')
 
         self.robot_status="busy"
         self.robot_status_verzenden()
@@ -284,7 +286,7 @@ class Controller(Node):
     def robot_status_verzenden(self):
         msg=String()
         msg.data=self.robot_status
-        self.robot_status_publisher
+        self.robot_status_publisher.publish(msg)
 
 
     def teller_verzenden(self):
@@ -292,14 +294,15 @@ class Controller(Node):
         teller_msg.data = [self.kubus_teller, self.balk_teller, self.maan_teller, self.octagon_teller]
         self.HMI_teller_publisher.publish(teller_msg)
      
-    def product_keuze_call_client(self):
+    def product_keuze_call_client(self):  #product
         request = Trigger.Request()
 
         future = self.product_keuze_client.call_async(request)
 
         self.get_logger().info("Wachten op response...")
 
-        rclpy.spin_until_future_complete(self, future)
+        while not future.done():
+            time.sleep(0.05)  # 50ms wachten per iteratie
 
         if future.result():
             self.gekozen_product = future.result().message
@@ -309,60 +312,67 @@ class Controller(Node):
         self.get_logger().error("Service failed")
         return None
         
-    def stuur_product_locatie(self):
-        if self.automate==False:  #kijkt of je handmatig keuze moet maken
-            self.product_keuze_call_client()  #roept keuze maken aan
-            data_keuze=self.object_resultaat.copy()  #kijkt naar producten labels en locatie
-            print(f'{self.object_resultaat}')
-            print(type(self.gekozen_product))
-            print(repr(self.gekozen_product))
-            match=None  #er is geen match
-            for obj in data_keuze:  #voor alle objecten
-                if self.gekozen_product==obj["LABELS"]:  #als het product label overeenkomt met de keuze dan
-                    match=obj  #match wordt het momentele object
-                    if obj=="Kubus":  #stuurt de bak naar manipulator
-                       self.kubus_bak()
-                    elif obj=="Balk":
-                       self.balk_bak()
-                    elif obj=="Maan":
-                       self.maan_bak()
-                    elif obj=="Octagon":
-                        self.octagon_bak()
-                    break  #ga uit de loop van for
+    def stuur_product_locatie(self):  #stuur gekozen product lokatie
+        if self.object_resultaat is None:  #geen object is er
+            self.get_logger().warn("Nog geen detectie resultaten beschikbaar")
+            self.product_response.success = False
+            self.product_response.message = "geen product gevonden"
+            return
 
-            if match:  #als er een match is pak coordinaten en rotatie
-                self.x_mm = match['x_mm']
-                self.y_mm = match['y_mm']
-                self.hoogte_mm = match['hoogte_mm']
-                self.rotatie_deg = match['rotatie_deg']
-                self.transorm_camxy_robot_xy() #transformeer het
-            else:
-                print('geen gekozen product ligt er of is geen product') # geen match van procut
-                self.product_response.success=False
-                self.product_response.message="geen product gevonden"
+        data_keuze = self.object_resultaat.copy()  # altijd een lijst van dicts
 
-        
-        elif self.automate==True:
-            data_keuze=self.object_resultaat
-            if data_keuze is not None:
-                obj=data_keuze['LABELS']
-                self.x_mm = data_keuze['x_mm']  #x positie 
-                self.y_mm = data_keuze['y_mm']
-                self.hoogte_mm = data_keuze['hoogte_mm']
-                self.rotatie_deg = data_keuze ['rotatie_deg']
-                self.transorm_camxy_robot_xy()  #zorg voor transformatie van positie en rotatie
-                if obj=="Kubus":  #stuurt de bak naar manipulator
-                   self.kubus_bak()
-                elif obj=="Balk":
-                    self.balk_bak()
-                elif obj=="Maan":
-                    self.maan_bak()
-                elif obj=="Octagon":
-                    self.octagon_bak()
+        if not self.automate:
+            # --- Handmatig: zoek het object waarvan LABELS overeenkomt met de keuze ---
+            self.product_keuze_call_client()
+
+            match = None
+            for obj in data_keuze:
+                if self.gekozen_product == obj["LABELS"]:
+                    match = obj
+                    break  # eerste match is genoeg
+
+            if match:
+                #self._stuur_bak(match["LABELS"])
+                self._stel_coordinaten_in(match)
+                self.transorm_camxy_robot_xy()
             else:
-                print('geen product gevonden') #geen product in camera beeld  
-                self.product_response.success=False
-                self.product_response.message="geen product gevonden"
+                self.get_logger().warn("Geen match gevonden voor gekozen product")
+                self.product_response.success = False
+                self.product_response.message = "geen product gevonden"
+
+        else:
+        #  Automatisch: pak altijd het eerste object uit de lijst
+            if data_keuze:
+                obj = data_keuze[0]
+                #self._stuur_bak(obj["LABELS"])
+                self._stel_coordinaten_in(obj)
+                self.transorm_camxy_robot_xy()
+            else:
+                self.get_logger().warn("Lege lijst, geen product gevonden")
+                self.product_response.success = False
+                self.product_response.message = "geen product gevonden"
+
+
+    def _stel_coordinaten_in(self, obj):
+       #Haalt x/y/z/rotatie uit een object-dict.
+       self.x_mm       = obj['x_mm']
+       self.y_mm       = obj['y_mm']
+       self.hoogte_mm  = obj['hoogte_mm']
+       self.rotatie_deg = obj['rotatie_deg']
+
+
+    def _stuur_bak(self, label):
+    #Publiceert de bak-locatie op basis van het label.
+        if label == "Kubus":
+            self.kubus_bak()
+        elif label == "Balk":
+            self.balk_bak()
+        elif label == "Maan":
+            self.maan_bak()
+        elif label == "Octagon":
+            self.octagon_bak()
+        else:
+            self.get_logger().warn(f"Onbekend label: {label}")
             
 
     def transorm_camxy_robot_xy(self):
@@ -406,30 +416,30 @@ class Controller(Node):
     def kubus_bak(self):
         msg=Int32()#<-----------moet nog aangepast worden
         msg.data=[0.13, -0.275, 0.25]
-        self.bak_locatie_publisher(msg)
+        self.bak_locatie_publisher.publish(msg)
         self.kubus_teller += 1
-        self.teller_verzenden
+        self.teller_verzenden()
 
     def maan_bak(self):
         msg=Int32#<-----------moet nog aangepast worden
         msg.data=[0.13, -0.175, 0.25]
-        self.bak_locatie_publisher(msg)
+        self.bak_locatie_publisher.publish(msg)
         self.maan_teller += 1
-        self.teller_verzenden
+        self.teller_verzenden()
 
     def balk_bak(self):
         msg=Int32#<-----------moet nog aangepast worden
         msg.data=[0.25, -0.275, 0.25]
-        self.bak_locatie_publisher(msg)
+        self.bak_locatie_publisher.publish(msg)
         self.balk_teller += 1
-        self.teller_verzenden
+        self.teller_verzenden()
 
     def octagon_bak(self):
         msg=Int32#<-----------moet nog aangepast worden
         msg.data=[0.25, -0.175, 0.25]
-        self.bak_locatie_publisher(msg)
+        self.bak_locatie_publisher.publish(msg)
         self.octagon_teller += 1
-        self.teller_verzenden
+        self.teller_verzenden()
 
         
 
