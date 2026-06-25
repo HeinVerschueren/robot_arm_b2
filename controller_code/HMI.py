@@ -285,7 +285,7 @@ class HMI(Node):
         self.status_label_keuze.grid(row=2, column=2, padx=20, pady=5, sticky="n")
 
         self.snelheid_Status = tk.StringVar()
-        self.snelheid_Status.set("snelheid:100%")
+        self.snelheid_Status.set("snelheid:50%")
 
         self.status_label_snelheid = tk.Label( #snelheid status label
             self.root,
