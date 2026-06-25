@@ -28,8 +28,8 @@ from geometry_msgs.msg import PoseStamped
 from xarm_msgs.srv import VacuumGripperCtrl
 
 from enum import Enum
-from std_msgs.msg import Bool, Int32, Float32
-from std_srvs.srv import SetBool
+from std_msgs.msg import Bool, String, Float32
+from std_srvs.srv import Trigger
 
 # Status van de robot
 class RobotState(Enum):
@@ -93,7 +93,7 @@ class manipulatorController(Node):
 
         self.start_signal = False
         self.stop_signal = False
-        self.mode_auto = True
+        self.mode_auto = False #True
 
         self.estop = False
 
@@ -161,7 +161,7 @@ class manipulatorController(Node):
         Bool, "/robot_mode", self.mode_cb, 10)
 
         self.bin_sub = self.create_subscription(
-        Int32, "/bin_location", self.bin_cb, 10)
+        String, "/bin_location", self.bin_cb, 10)
 
         self.estop_sub = self.create_subscription(
         Bool, "/estop", self.estop_cb, 10)
@@ -172,7 +172,7 @@ class manipulatorController(Node):
         self.aruco_sub = self.create_subscription(
         PoseStamped, "/aruco_pose", self.aruco_cb, 10)
 
-        self.speed_scale = 0.5  # default snelheid (50%)
+        self.speed_scale = 0.2  # default snelheid (50%)
 
         self.speed_sub = self.create_subscription(
         Float32, "/speed_scale", self.speed_cb, 10)
@@ -181,9 +181,9 @@ class manipulatorController(Node):
         Bool, "/geen_product", self.geen_product_cb, 10)
 
         # Service clients
-        self.call_for_product = self.create_client(SetBool, "/call_for_product")
-        while not self.call_for_product.wait_for_service(timeout_sec=3.0):
-            self.get_logger().info("Waiting for product service...")
+        self.call_for_product = self.create_client(Trigger, "/call_for_product")
+        #while not self.call_for_product.wait_for_service(timeout_sec=3.0):
+        #    self.get_logger().info("Waiting for product service...")
 
 
         # TEST TRANSFERFRAMES
@@ -222,10 +222,10 @@ class manipulatorController(Node):
             msg.pose.position.z]
 
         self.object_rotation = [
-            msg.pose.orientation.w,
             msg.pose.orientation.x,
             msg.pose.orientation.y,
-            msg.pose.orientation.z]
+            msg.pose.orientation.z,
+            msg.pose.orientation.w]
 
 
     def publish_error(self, text):
@@ -259,16 +259,21 @@ class manipulatorController(Node):
 
 
     def call_for_product(self):
-        request = SetBool.Request()
-        request.data = True
+        request = Trigger.Request()
 
-        future = self.call_for_product.call_sync(request)
+        future = self.call_for_product.call_async(request)
+        self.get_logger().info("wachten op product...")
 
-        rclpy.spin_until_future_complete(self, future)
+        while not future.done():
+            time.sleep(0.05)
 
-        if future.result() is None:
-            self.get_logger().error("Service call failed")
-            return False
+        if future.result():
+            if future.result().success is True:
+                self.call_for_product = future.result().message
+                
+            else:
+                self.get_logger().error("Service call failed")
+                return False
 
         return future.result().success
 
@@ -296,10 +301,10 @@ class manipulatorController(Node):
                 t.transform.translation.z,
             ]
             rotation = [
-                t.transform.rotation.w,
                 t.transform.rotation.x,
                 t.transform.rotation.y,
                 t.transform.rotation.z,
+                t.transform.rotation.w,
             ]
             self.get_logger().info(f"Moving to transform: {from_frame} → {to_frame}")
             self.move_to_pose(translation, rotation)
@@ -398,9 +403,17 @@ class manipulatorController(Node):
 
             # ---------------- PRE PICK ----------------
             elif self.state == RobotState.PRE_PICK:
+                
+                pre = self.object_translation.copy()
+
+                self.get_logger().info(f"object = {self.object_translation}")
 
                 pre = self.object_translation.copy()
-                pre[2] += 0.02  # 20mm boven object
+                pre[2] += 0.05  # 20mm boven object
+
+                self.get_logger().info(f"pre_pick = {pre}")
+
+                time.sleep(2.0)
 
                 if not self.safe_move_to_pose(pre, self.object_rotation):
                     self.state = RobotState.HOME
@@ -411,19 +424,27 @@ class manipulatorController(Node):
             elif self.state == RobotState.PICK:
 
                 self.gripper.release()
+                time.sleep(0.1)
+
+                #self.move_to_pose(
+                #    [0.25, 0.185, 0.20],
+                #    [1.0, 0.707, 0.0, 0.0])   # xyzw
+
                 self.move_to_pose(
                     self.object_translation,
                     self.object_rotation)
 
                 self.gripper.close()
+                time.sleep(0.5)
                 self.state = RobotState.MOVE_OVER
 
             # ---------------- MOVE OVER ----------------
             elif self.state == RobotState.MOVE_OVER:
                 
-                for state in ["home", "left"]:
+                #for state in ["home", "left"]:
+                for state in ["left"]:
                     self.move_to_state(state)
-                    time.sleep(0.3)
+                    time.sleep(0.1)
                 
                 self.state = RobotState.PLACE
 
@@ -485,14 +506,18 @@ class manipulatorController(Node):
 
         # 45 graden rotatie rond Z-as
         q = tf_transformations.quaternion_from_euler(
-            0, 0, math.radians(45))
+            0, math.radians(45), 0)
         
         msg = PoseStamped()
 
-        transform.transform.rotation.x = q[0]
-        transform.transform.rotation.y = q[1]
-        transform.transform.rotation.z = q[2]
-        transform.transform.rotation.w = q[3]
+        msg.pose.position.x = 0.25
+        msg.pose.position.y = 0.185
+        msg.pose.position.z = 0.15
+
+        msg.pose.orientation.x = q[0]
+        msg.pose.orientation.y = q[1]
+        msg.pose.orientation.z = q[2]
+        msg.pose.orientation.w = q[3]
 
         self.aruco_cb(msg)
 
