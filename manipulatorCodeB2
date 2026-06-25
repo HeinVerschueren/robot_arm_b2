@@ -53,18 +53,19 @@ class VacuumGripper(Node):
 
         self.client = self.create_client(
             VacuumGripperCtrl,
-            '/xarm/set_vacuum_gripper'
-        )
+            '/xarm/set_vacuum_gripper')
+
+        self.grijper_pub = self.create_publisher(Bool, "/grijper", 10)
 
         while not self.client.wait_for_service(timeout_sec=2.0):
             self.get_logger().info(
-                'Waiting for vacuum gripper service...'
-            )
+                'Waiting for vacuum gripper service...')
 
     def close(self):
         request = VacuumGripperCtrl.Request()
         request.on = True
         #request.wait = True
+        self.grijper_pub = True
 
         future = self.client.call_async(request)
         rclpy.spin_until_future_complete(self, future)
@@ -75,6 +76,7 @@ class VacuumGripper(Node):
         request = VacuumGripperCtrl.Request()
         request.on = False
         #request.wait = True
+        self.grijper_pub = False
 
         future = self.client.call_async(request)
         rclpy.spin_until_future_complete(self, future)
@@ -97,10 +99,6 @@ class manipulatorController(Node):
 
         self.estop = False
 
-        self.transfer_received = False
-        self.object_translation = None
-        self.object_rotation = None
-
         self.target_bin = 1
         self.bin_positions = {
         1: [0.13, -0.275, 0.25],  # links achter
@@ -108,6 +106,9 @@ class manipulatorController(Node):
         3: [0.25, -0.275, 0.25],  # links voor
         4: [0.25, -0.175, 0.25]}   # rechts voor
         self.gripper = VacuumGripper()
+
+        self.transfer_translation = None
+        self.transfer_rotation = None
 
         super().__init__(node_name)
 
@@ -169,9 +170,6 @@ class manipulatorController(Node):
         self.reset_sub = self.create_subscription(
         Bool, "/estop_reset", self.reset_cb, 10)
 
-        self.aruco_sub = self.create_subscription(
-        PoseStamped, "/aruco_pose", self.aruco_cb, 10)
-
         self.speed_scale = 0.2  # default snelheid (50%)
 
         self.speed_sub = self.create_subscription(
@@ -184,11 +182,6 @@ class manipulatorController(Node):
         self.call_for_product = self.create_client(Trigger, "/call_for_product")
         #while not self.call_for_product.wait_for_service(timeout_sec=3.0):
         #    self.get_logger().info("Waiting for product service...")
-
-
-        # TEST TRANSFERFRAMES
-        #self.enable_fake_aruco_tf()
-        self.fake_timer = self.create_timer(1.0, self.fake_aruco_publish)
 
     # --- Create callback functions here ---
 
@@ -212,21 +205,6 @@ class manipulatorController(Node):
         if msg.data:
             self.estop = False
             self.state = RobotState.HOME
-
-    def aruco_cb(self, msg):
-        self.transfer_received = True
-
-        self.object_translation = [
-            msg.pose.position.x,
-            msg.pose.position.y,
-            msg.pose.position.z]
-
-        self.object_rotation = [
-            msg.pose.orientation.x,
-            msg.pose.orientation.y,
-            msg.pose.orientation.z,
-            msg.pose.orientation.w]
-
 
     def publish_error(self, text):
         msg = Bool()
@@ -258,7 +236,7 @@ class manipulatorController(Node):
         self.get_logger().info(f"Geen product status: {msg.data}")
 
 
-    def call_for_product(self):
+    def call_for_product_location(self):
         request = Trigger.Request()
 
         future = self.call_for_product.call_async(request)
@@ -267,15 +245,20 @@ class manipulatorController(Node):
         while not future.done():
             time.sleep(0.05)
 
-        if future.result():
-            if future.result().success is True:
-                self.call_for_product = future.result().message
-                
-            else:
-                self.get_logger().error("Service call failed")
-                return False
+        result = future.result()
 
-        return future.result().success
+        if result and future.success:
+            pose_str = result.message
+            # splitst positie en rotatie
+            pos_str, rot_str = pose_str.split("|")
+
+            self.transfer_translation = [float(x) for x in pos_str.split(",")]
+            self.transfer_rotation = [float(x) for x in rot_str.split(",")]
+            return True
+        else:
+            self.get_logger().error("Service call failed")
+            return False
+        return False
 
 
     # --- Motion primitives ------------------------------------------------
@@ -383,59 +366,57 @@ class manipulatorController(Node):
             # ---------------- Wacht op transferframe----------------
             elif self.state == RobotState.wachtOpTransferFrame:
 
+
                 timeout = time.time() + 10.0
+                
+                product_ok = self.call_for_product_location()
 
-                while not self.transfer_received:
+                if not product_ok:
+                    self.publish_error("No transferframe received")
+                    self.move_to_state("home")
+                    self.state = RobotState.wachtOpStart
+                    continue
 
-                    if time.time() > timeout:
-                        product_ok = self.call_for_product()
-
-                        if not product_ok:
-                            self.publish_error("No ArUco frame received")
-                            self.move_to_state("home")
-                            self.state = RobotState.wachtOpStart
-                            break
-
-                    time.sleep(0.05)
-
-                if self.transfer_received:
-                    self.state = RobotState.PRE_PICK
+                self.state = RobotState.PRE_PICK
 
             # ---------------- PRE PICK ----------------
             elif self.state == RobotState.PRE_PICK:
                 
-                pre = self.object_translation.copy()
+                if self.transfer_translation is None:
+                    self.publish_error("No transfer data in PRE_PICK")
+                    self.state = RobotState.ERROR
+                    continue
 
-                self.get_logger().info(f"object = {self.object_translation}")
-
-                pre = self.object_translation.copy()
-                pre[2] += 0.05  # 20mm boven object
+                pre = self.transfer_translation.copy()
+                pre[2] += 0.05  # 5 cm boven object
 
                 self.get_logger().info(f"pre_pick = {pre}")
 
-                time.sleep(2.0)
+                if not self.safe_move_to_pose(pre, self.transfer_rotation):
+                    self.state = RobotState.ERROR
+                    continue
 
-                if not self.safe_move_to_pose(pre, self.object_rotation):
-                    self.state = RobotState.HOME
-                    return
                 self.state = RobotState.PICK
 
             # ---------------- PICK ----------------
             elif self.state == RobotState.PICK:
 
-                self.gripper.release()
-                time.sleep(0.1)
+                if self.transfer_translation is None:
+                    self.publish_error("No transfer data in PICK")
+                    self.state = RobotState.ERROR
+                    continue
 
-                #self.move_to_pose(
-                #    [0.25, 0.185, 0.20],
-                #    [1.0, 0.707, 0.0, 0.0])   # xyzw
+                self.gripper.release()
+                time.sleep(0.2)
 
                 self.move_to_pose(
-                    self.object_translation,
-                    self.object_rotation)
+                    self.transfer_translation,
+                    self.transfer_rotation)
 
                 self.gripper.close()
+
                 time.sleep(0.5)
+
                 self.state = RobotState.MOVE_OVER
 
             # ---------------- MOVE OVER ----------------
@@ -457,10 +438,10 @@ class manipulatorController(Node):
 
                 self.gripper.release()
 
-                self.publish_cycle_done()
+                self.transfer_translation = None
+                self.transfer_rotation = None
 
-                # reset aruco voor volgende cycle
-                self.transfer_received = False
+                self.publish_cycle_done()
 
                 # STOP LOGICA
                 if self.stop_signal:
@@ -481,51 +462,11 @@ class manipulatorController(Node):
                     self.move_to_state("home")
                     self.state = RobotState.wachtOpStart
 
-                self.transfer_received = False
-                self.object_translation = None
-                self.object_rotation = None
+                self.transfer_translation = None
+                self.transfer_rotation = None
 
             rate.sleep()
 
-    
-    # TEST TRANSFERFRAMES
-    def fake_aruco_publish(self):
-
-        if not self.TEST_MODE:
-            return
-
-        transform = TransformStamped()
-
-        transform.header.frame_id = "base_link"
-        transform.child_frame_id = "camera"
-
-        # positie van ArUco marker
-        transform.transform.translation.x = 0.25    # aruco marker is 0.36 in X richting
-        transform.transform.translation.y = 0.285   # aruco marker is 0.285 in Y richting
-        transform.transform.translation.z = 0.15    # aruco marker is 0 in Z richting
-
-        # 45 graden rotatie rond Z-as
-        q = tf_transformations.quaternion_from_euler(
-            0, math.radians(45), 0)
-        
-        msg = PoseStamped()
-
-        msg.pose.position.x = 0.25
-        msg.pose.position.y = 0.185
-        msg.pose.position.z = 0.15
-
-        msg.pose.orientation.x = q[0]
-        msg.pose.orientation.y = q[1]
-        msg.pose.orientation.z = q[2]
-        msg.pose.orientation.w = q[3]
-
-        self.aruco_cb(msg)
-
-        # OVERRIDE TF lookup (alleen test)
-        self.tf_buffer.lookup_transform = MagicMock(
-            return_value=transform)
-
-        #self.get_logger().warn("FAKE ARUCO TF ENABLED (TEST MODE)")
 # --------------------------------------------------------------------------
 # Do not modify the main function unless necessary.
 # -------------------------------------------------------------------------
