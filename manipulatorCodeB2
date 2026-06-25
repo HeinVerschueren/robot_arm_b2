@@ -96,6 +96,7 @@ class manipulatorController(Node):
         self.start_signal = False
         self.stop_signal = False
         self.mode_auto = False #True
+        self.manual_override = False
 
         self.estop = False
 
@@ -178,6 +179,8 @@ class manipulatorController(Node):
         self.geen_product_sub = self.create_subscription(
         Bool, "/geen_product", self.geen_product_cb, 10)
 
+        self.manual_override_sub = self.create_subscription(
+        Bool, "/manual_override", self.manual_override_cb, 10)
         # Service clients
         self.call_for_product = self.create_client(Trigger, "/call_for_product")
         #while not self.call_for_product.wait_for_service(timeout_sec=3.0):
@@ -259,6 +262,23 @@ class manipulatorController(Node):
             self.get_logger().error("Service call failed")
             return False
         return False
+    
+    def manual_override_cb(self, msg):
+        self.manual_override = msg.data
+
+        if self.manual_override:
+            self.get_logger().warn("MANUAL OVERRIDE ACTIVE → returning to HOME")
+
+            # stop alles en ga naar home
+            self.move_to_state("home")
+
+            self.state = RobotState.wachtOpStart
+
+            # reset inputs zodat robot niet doorgaat
+            self.transfer_translation = None
+            self.transfer_rotation = None
+            self.start_signal = False
+            self.stop_signal = False
 
 
     # --- Motion primitives ------------------------------------------------
@@ -346,6 +366,10 @@ class manipulatorController(Node):
         rate = self.create_rate(10)
 
         while rclpy.ok():
+
+            if self.manual_override:
+                time.sleep(0.1)
+                continue
 
             if self.estop:
                 time.sleep(0.1)
