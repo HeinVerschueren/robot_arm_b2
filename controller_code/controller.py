@@ -75,7 +75,7 @@ class Controller(Node):
         )
         print("bakken")
         self.bak_locatie_publisher = self.create_publisher(
-            Int32,    #type bericht sturen <___________--- moet nog aangepast worden naar juiste type
+            String,    #type bericht sturen <___________--- moet nog aangepast worden naar juiste type
             'bak_locatie',   #welk ding sturen
             10   #backlog aan msg
         )
@@ -104,6 +104,18 @@ class Controller(Node):
             10
         ) 
 
+        self.confidance_drempel_pub=self.create_publisher(
+            Float32,
+            'confidence_drempel',
+            10
+        )
+
+        self.speed_robot_pub=self.create_publisher(
+            Float32,
+            'speed_scale',
+            10
+        )
+
 ###########subscriptions##########
         self.start_stop_subsriber=self.create_subscription(  #maakt aan 
             Bool,   #type bericht lezen
@@ -111,7 +123,7 @@ class Controller(Node):
             self.start_stop_callback,   #haalt data op
             10    #backlog aan msg
         )
-        print("automate sub")
+
         self.autmote_subsriber=self.create_subscription(  #maakt aan 
             Bool,   #type bericht lezen
             "/automate",   #welk ding gesubscibt
@@ -132,7 +144,7 @@ class Controller(Node):
             self.shut_down_callback,   #haalt data op
             10    #backlog aan msg
         )       
-        print("kut voice")
+
         self.voice_on_subsriber=self.create_subscription(  #maakt aan 
             Bool,   #type bericht lezen
             "/voice_on",   #welk ding gesubscibt
@@ -153,7 +165,7 @@ class Controller(Node):
             self.snelheid_callback,   #haalt data op
             10    #backlog aan msg
         )
-        print("threshold")
+
         self.threshold_subsriber=self.create_subscription(  #maakt aan 
             Float32,   #type bericht lezen
             "/threshold",   #welk ding gesubscibt
@@ -239,10 +251,19 @@ class Controller(Node):
         self.tekst = msg.data
 
     def snelheid_callback(self, msg):
-        self.tekst = msg.data
+        snelheid_procent = msg.data
+        snelheid_decimaal=snelheid_procent/200
+        msg=Float32()
+        msg.data=snelheid_decimaal
+        self.speed_robot_pub.publish(msg)
+
 
     def threshold_callback(self, msg):
-        self.tekst = msg.data   
+        threshold_procent = msg.data
+        threshold_sturen=threshold_procent/100
+        msg=Float32()
+        msg.data=threshold_sturen
+        self.confidance_drempel_pub.publish(msg)
 
     def manual_overide_callback(self, msg):
         self.tekst = msg.data
@@ -252,19 +273,21 @@ class Controller(Node):
 
     def object_detectie_callback(self, msg):
         data = json.loads(msg.data)
-        # Zorg altijd voor een lijst, of de node nu een dict of lijst stuurt
+        # Zorg altijd voor een lijst, of de node nu een dict of lijst stuurt anders krijg je een crash in product locatie
         if isinstance(data, dict):
             self.object_resultaat = [data]
         else:
             self.object_resultaat = data
 
-    def handshake_callback(self, msg):
+    def handshake_callback(self, msg):  #robot klaar voor opstarten
         self.tekst = msg.data
         self.robot_status="stand-by"
         self.robot_status_verzenden()
 
     def robot_error_callback(self, msg):    
         self.tekst = msg.data
+        self.robot_status="error"
+        self.robot_status_verzenden()
     
     def cycle_complete_callback(self, msg):
         self.tekst = msg.data
@@ -332,7 +355,7 @@ class Controller(Node):
                     break  # eerste match is genoeg
 
             if match:
-                #self._stuur_bak(match["LABELS"])
+                self._stuur_bak(match["LABELS"])
                 self._stel_coordinaten_in(match)
                 self.transorm_camxy_robot_xy()
             else:
@@ -344,7 +367,7 @@ class Controller(Node):
         #  Automatisch: pak altijd het eerste object uit de lijst
             if data_keuze:
                 obj = data_keuze[0]
-                #self._stuur_bak(obj["LABELS"])
+                self._stuur_bak(obj["LABELS"])
                 self._stel_coordinaten_in(obj)
                 self.transorm_camxy_robot_xy()
             else:
@@ -414,29 +437,41 @@ class Controller(Node):
 
 ###########stuur bakken door#############
     def kubus_bak(self):
-        msg=Int32()#<-----------moet nog aangepast worden
-        msg.data=[0.13, -0.275, 0.25]
+        msg=String()#<-----------moet nog aangepast worden
+        bak_cords={'x':0.13,
+                   'y':-0.275,
+                   'z':0.25}
+        msg.data=json.dumps(bak_cords)
         self.bak_locatie_publisher.publish(msg)
         self.kubus_teller += 1
         self.teller_verzenden()
 
     def maan_bak(self):
-        msg=Int32#<-----------moet nog aangepast worden
-        msg.data=[0.13, -0.175, 0.25]
+        msg=String()  #cordinaten voor bak
+        bak_cords={'x':0.13,
+                   'y':-0.175,
+                   'z':0.25}
+        msg.data=json.dumps(bak_cords)
         self.bak_locatie_publisher.publish(msg)
         self.maan_teller += 1
         self.teller_verzenden()
 
     def balk_bak(self):
-        msg=Int32#<-----------moet nog aangepast worden
-        msg.data=[0.25, -0.275, 0.25]
+        msg=String()
+        bak_cords={'x':0.25,
+                   'y':-0.275,
+                   'z':0.25}
+        msg.data=json.dumps(bak_cords)
         self.bak_locatie_publisher.publish(msg)
         self.balk_teller += 1
         self.teller_verzenden()
 
     def octagon_bak(self):
-        msg=Int32#<-----------moet nog aangepast worden
-        msg.data=[0.25, -0.175, 0.25]
+        msg=String()
+        bak_cords={'x':0.25,
+                   'y':-0.175,
+                   'z':0.25}
+        msg.data=json.dumps(bak_cords)
         self.bak_locatie_publisher.publish(msg)
         self.octagon_teller += 1
         self.teller_verzenden()
