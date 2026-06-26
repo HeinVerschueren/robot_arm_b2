@@ -1,0 +1,25 @@
+[0.493s] Invoking command in '/home/student/Vision/robot_arm_b2/vision_node': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/student/Vision/robot_arm_b2/build/vision_node/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/student/Vision/robot_arm_b2/install/vision_node/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../build/vision_node build --build-base /home/student/Vision/robot_arm_b2/build/vision_node/build install --record /home/student/Vision/robot_arm_b2/build/vision_node/install.log --single-version-externally-managed install_data
+[0.650s] running egg_info
+[0.660s] writing ../build/vision_node/vision_node.egg-info/PKG-INFO
+[0.661s] writing dependency_links to ../build/vision_node/vision_node.egg-info/dependency_links.txt
+[0.661s] writing entry points to ../build/vision_node/vision_node.egg-info/entry_points.txt
+[0.662s] writing requirements to ../build/vision_node/vision_node.egg-info/requires.txt
+[0.662s] writing top-level names to ../build/vision_node/vision_node.egg-info/top_level.txt
+[0.684s] reading manifest file '../build/vision_node/vision_node.egg-info/SOURCES.txt'
+[0.684s] writing manifest file '../build/vision_node/vision_node.egg-info/SOURCES.txt'
+[0.684s] running build
+[0.684s] running build_py
+[0.684s] copying vision_node/vision_node.py -> /home/student/Vision/robot_arm_b2/build/vision_node/build/lib/vision_node
+[0.685s] running install
+[0.690s] running install_lib
+[0.700s] copying /home/student/Vision/robot_arm_b2/build/vision_node/build/lib/vision_node/vision_node.py -> /home/student/Vision/robot_arm_b2/install/vision_node/lib/python3.12/site-packages/vision_node
+[0.700s] byte-compiling /home/student/Vision/robot_arm_b2/install/vision_node/lib/python3.12/site-packages/vision_node/vision_node.py to vision_node.cpython-312.pyc
+[0.703s] Sorry: TabError: inconsistent use of tabs and spaces in indentation (vision_node.py, line 450)
+[0.704s] running install_data
+[0.704s] running install_egg_info
+[0.717s] removing '/home/student/Vision/robot_arm_b2/install/vision_node/lib/python3.12/site-packages/vision_node-0.0.0-py3.12.egg-info' (and everything under it)
+[0.717s] Copying ../build/vision_node/vision_node.egg-info to /home/student/Vision/robot_arm_b2/install/vision_node/lib/python3.12/site-packages/vision_node-0.0.0-py3.12.egg-info
+[0.718s] running install_scripts
+[0.797s] Installing vision_node script to /home/student/Vision/robot_arm_b2/install/vision_node/lib/vision_node
+[0.797s] writing list of installed files to '/home/student/Vision/robot_arm_b2/build/vision_node/install.log'
+[0.817s] Invoked command in '/home/student/Vision/robot_arm_b2/vision_node' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/student/Vision/robot_arm_b2/build/vision_node/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/student/Vision/robot_arm_b2/install/vision_node/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../build/vision_node build --build-base /home/student/Vision/robot_arm_b2/build/vision_node/build install --record /home/student/Vision/robot_arm_b2/build/vision_node/install.log --single-version-externally-managed install_data

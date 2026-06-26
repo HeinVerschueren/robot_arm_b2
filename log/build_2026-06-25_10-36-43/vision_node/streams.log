@@ -1,0 +1,19 @@
+[0.863s] Invoking command in '/home/student/Vision/robot_arm_b2/vision_node': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/student/Vision/robot_arm_b2/build/vision_node/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/student/Vision/robot_arm_b2/install/vision_node/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../build/vision_node build --build-base /home/student/Vision/robot_arm_b2/build/vision_node/build install --record /home/student/Vision/robot_arm_b2/build/vision_node/install.log --single-version-externally-managed install_data
+[1.075s] running egg_info
+[1.084s] writing ../build/vision_node/vision_node.egg-info/PKG-INFO
+[1.085s] writing dependency_links to ../build/vision_node/vision_node.egg-info/dependency_links.txt
+[1.085s] writing entry points to ../build/vision_node/vision_node.egg-info/entry_points.txt
+[1.085s] writing requirements to ../build/vision_node/vision_node.egg-info/requires.txt
+[1.086s] writing top-level names to ../build/vision_node/vision_node.egg-info/top_level.txt
+[1.107s] reading manifest file '../build/vision_node/vision_node.egg-info/SOURCES.txt'
+[1.107s] writing manifest file '../build/vision_node/vision_node.egg-info/SOURCES.txt'
+[1.108s] running build
+[1.108s] running build_py
+[1.108s] copying vision_node/vision_node.py -> /home/student/Vision/robot_arm_b2/build/vision_node/build/lib/vision_node
+[1.108s] running install
+[1.112s] running install_lib
+[1.124s] copying /home/student/Vision/robot_arm_b2/build/vision_node/build/lib/vision_node/vision_node.py -> /home/student/Vision/robot_arm_b2/install/vision_node/lib/python3.12/site-packages/vision_node
+[1.124s] byte-compiling /home/student/Vision/robot_arm_b2/install/vision_node/lib/python3.12/site-packages/vision_node/vision_node.py to vision_node.cpython-312.pyc
+[1.132s] running install_data
+[1.132s] error: can't copy 'vision_node/model/best.pt': doesn't exist or not a regular file
+[1.145s] Invoked command in '/home/student/Vision/robot_arm_b2/vision_node' returned '1': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/student/Vision/robot_arm_b2/build/vision_node/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/student/Vision/robot_arm_b2/install/vision_node/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../build/vision_node build --build-base /home/student/Vision/robot_arm_b2/build/vision_node/build install --record /home/student/Vision/robot_arm_b2/build/vision_node/install.log --single-version-externally-managed install_data

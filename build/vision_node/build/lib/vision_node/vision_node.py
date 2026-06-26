@@ -20,47 +20,43 @@ from datetime import timedelta
 # =============================================================================
 
 MODEL_PATH = os.path.join(os.path.dirname(__file__), 'model', 'best.pt')
-LABELS = ['Maan', 'Octagon', 'Balk', 'Kubus']
+LABELS = ['Balk', 'Kubus', 'Maan', 'Octagon']
 
 # Vaste z per klasse: (liggend_mm, staand_mm)
-# Balk/Maan: staand = hoogte_bbox > breedte_bbox * STAAND_RATIO
-# Octagon:   staand = bbox NIET duidelijk breder dan hoog (omgekeerde logica)
-#            want staande Octagon is rond (vierkante bbox), liggend is breed
 Z_PER_KLASSE = {
     'Maan':    (10.0, 11.0),
     'Octagon': (10.0, 15.0),
     'Balk':    (10.0, 30.0),
     'Kubus':   (10.0, 10.0),
 }
-STAAND_RATIO  = 1.3   # hoogte/breedte drempel voor staand (Balk, Maan)
-LIGGEND_RATIO = 1.3   # breedte/hoogte drempel voor liggend Octagon
 
-# Centroide smoothing
+STAAND_ASPECT_DREMPEL = 0.88
+MAAN_ASPECT_DREMPEL = 0.6
+
 CENTROID_SMOOTH_FRAMES = 5
 
-# ArUco
-ARUCO_DICT         = cv2.aruco.DICT_4X4_50
-ARUCO_MARKER_ID    = 0
-ARUCO_MARKER_SIZE_M = 0.048  # 48mm
-CALIBRATION_FRAMES = 20
+ARUCO_DICT          = cv2.aruco.DICT_4X4_50
+ARUCO_MARKER_ID     = 0
+ARUCO_MARKER_SIZE_M = 0.048
+CALIBRATION_FRAMES  = 20
 
-# YOLO
-YOLO_CONF_THRESHOLD = 0.3
+YOLO_CONF_THRESHOLD = 0.15
 YOLO_IOU_THRESHOLD  = 0.4
 YOLO_INPUT_SIZE     = (640, 640)
 
-# Camera resoluties
 RGB_WIDTH      = 1920
 RGB_HEIGHT     = 1080
 PUBLISH_WIDTH  = 960
 PUBLISH_HEIGHT = 540
 
-# Werkgebied (crop rondom marker)
 WORKSPACE_SIZE_MM = 700.0
 
-# Detectie persistentie (frames)
-PERSIST_FRAMES    = 5
-LABEL_HISTORY     = 10
+PERSIST_FRAMES = 5
+LABEL_HISTORY  = 10
+
+MAAN_CM_FACTOR = 2.0 / (3.0 * np.pi)  # ≈ 0.2122
+
+Z_SMOOTH_FRAMES = 7
 
 # =============================================================================
 
@@ -69,49 +65,46 @@ class VisionNode(Node):
     def __init__(self):
         super().__init__('vision_node')
 
-        # --- Publishers ---
-        self.pub_camera   = self.create_publisher(Image,            'camera_beelden',     10)
-        self.pub_detectie = self.create_publisher(DetectieResultaat, 'detectie_resultaten', 10)
-        self.pub_afgesloten = self.create_publisher(Bool,           'afgesloten',         10)
+        self.pub_camera        = self.create_publisher(Image,             'camera_beelden',      10)
+        self.pub_detectie      = self.create_publisher(DetectieResultaat, 'detectie_resultaten', 10)
+        self.pub_afgesloten    = self.create_publisher(Bool,              'afgesloten',          10)
+        self.pub_vision_gereed = self.create_publisher(Bool,              'vision_gereed',       10)
 
-        # --- Subscribers ---
-        self.create_subscription(Bool,    'afsluiten',        self._cb_afsluiten,   10)
+        self.create_subscription(Bool,    'shut_down',          self._cb_afsluiten,  10)
         self.create_subscription(Float32, 'confidence_drempel', self._cb_confidence, 10)
 
-        # --- Intern ---
         self._afsluiten      = False
         self._conf_threshold = YOLO_CONF_THRESHOLD
 
-        # ArUco
-        aruco_dict           = cv2.aruco.getPredefinedDictionary(ARUCO_DICT)
-        aruco_params         = cv2.aruco.DetectorParameters()
-        self.aruco_detector  = cv2.aruco.ArucoDetector(aruco_dict, aruco_params)
-        half                 = ARUCO_MARKER_SIZE_M / 2.0
-        self.marker_obj_pts  = np.array([
+        aruco_dict          = cv2.aruco.getPredefinedDictionary(ARUCO_DICT)
+        aruco_params        = cv2.aruco.DetectorParameters()
+        self.aruco_detector = cv2.aruco.ArucoDetector(aruco_dict, aruco_params)
+        half                = ARUCO_MARKER_SIZE_M / 2.0
+        self.marker_obj_pts = np.array([
             [-half,  half, 0], [ half,  half, 0],
             [ half, -half, 0], [-half, -half, 0]
         ], dtype=np.float64)
 
-        self.camera_matrix   = None
-        self.marker_rvec     = None
-        self.marker_tvec     = None
+        self.camera_matrix    = None
+        self.marker_rvec      = None
+        self.marker_tvec      = None
         self.marker_center_px = None
-        self.marker_size_px  = None
-        self.marker_locked   = False
+        self.marker_size_px   = None
+        self.marker_locked    = False
 
         self._cal_tvec   = collections.deque(maxlen=CALIBRATION_FRAMES)
         self._cal_rvec   = collections.deque(maxlen=CALIBRATION_FRAMES)
         self._cal_center = collections.deque(maxlen=CALIBRATION_FRAMES)
         self._cal_size   = collections.deque(maxlen=CALIBRATION_FRAMES)
 
-        # Detectie state
         self._label_history    = collections.defaultdict(
             lambda: collections.deque(maxlen=LABEL_HISTORY))
         self._centroid_history = collections.defaultdict(
             lambda: collections.deque(maxlen=CENTROID_SMOOTH_FRAMES))
+        self._z_history        = collections.defaultdict(
+            lambda: collections.deque(maxlen=Z_SMOOTH_FRAMES))
         self._persistent_detections = {}
 
-        # YOLO model
         self.model = None
         if os.path.exists(MODEL_PATH):
             from ultralytics import YOLO
@@ -123,8 +116,6 @@ class VisionNode(Node):
         threading.Thread(target=self._run_pipeline, daemon=True).start()
         self.get_logger().info('vision_node gestart.')
 
-    # ------------------------------------------------------------------
-    # Callbacks
     # ------------------------------------------------------------------
     def _cb_afsluiten(self, msg):
         if msg.data:
@@ -140,8 +131,6 @@ class VisionNode(Node):
             self.get_logger().warn(f'Ongeldige confidence drempel: {v}')
 
     # ------------------------------------------------------------------
-    # Beeldverbetering
-    # ------------------------------------------------------------------
     def _enhance(self, frame):
         lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
         l, a, b = cv2.split(lab)
@@ -151,12 +140,9 @@ class VisionNode(Node):
         return cv2.filter2D(frame, -1, kernel)
 
     # ------------------------------------------------------------------
-    # ArUco kalibratie (eenmalig)
-    # ------------------------------------------------------------------
     def _detect_aruco(self, frame):
         if self.camera_matrix is None:
             return
-
         if self.marker_locked:
             cv2.putText(frame, 'Marker vergrendeld',
                         (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
@@ -199,50 +185,79 @@ class VisionNode(Node):
                 self.get_logger().info(
                     f'Marker vergrendeld. tvec={self.marker_tvec.flatten().round(4)}')
 
-    # ------------------------------------------------------------------
-    # Pixel → wereld (ArUco coördinaten, mm)
+                # Publiceer vision_gereed zodat het systeem kan starten
+                msg_gereed = Bool()
+                msg_gereed.data = True
+                self.pub_vision_gereed.publish(msg_gereed)
+                self.get_logger().info('vision_gereed gepubliceerd.')
+
     # ------------------------------------------------------------------
     def _pixel_to_world_mm(self, x_px, y_px):
-        """
-        Converteert een pixelcoordinaat naar mm in het ArUco-frame.
-        Gebruikt de homografie gebaseerd op de bekende marker grootte.
-        """
         if self.marker_center_px is None or self.marker_size_px is None:
             return None, None
-
-        # px_per_mm schalingsfactor
         px_per_mm = self.marker_size_px / (ARUCO_MARKER_SIZE_M * 1000.0)
-
         dx_px = x_px - self.marker_center_px[0]
         dy_px = y_px - self.marker_center_px[1]
-
-        # Negatief zodat x rechts en y omhoog positief zijn (robotframe conventie)
-        x_mm = (dx_px / px_per_mm)
-        y_mm = -(dy_px / px_per_mm)
-
+        x_mm  =  dx_px / px_per_mm
+        y_mm  = -dy_px / px_per_mm
         return x_mm, y_mm
 
     # ------------------------------------------------------------------
-    # Z bepalen op basis van klasse + bounding box aspect ratio
+    def _get_contour(self, frame, x1, y1, x2, y2, margin=4):
+        """Hulpfunctie: geeft het grootste contour in de ROI terug."""
+        h, w = frame.shape[:2]
+        cx0 = max(0, x1 - margin); cy0 = max(0, y1 - margin)
+        cx1 = min(w, x2 + margin); cy1 = min(h, y2 + margin)
+        roi = frame[cy0:cy1, cx0:cx1]
+        if roi.size == 0:
+            return None, cx0, cy0
+
+        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        _, mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            return None, cx0, cy0
+
+        largest = max(contours, key=cv2.contourArea)
+        if cv2.contourArea(largest) < 20:
+            return None, cx0, cy0
+
+        return largest, cx0, cy0
+
     # ------------------------------------------------------------------
-    @staticmethod
-    def _bepaal_z(label, x1, y1, x2, y2):
-        bbox_w = max(x2 - x1, 1)
-        bbox_h = max(y2 - y1, 1)
+    def _bepaal_z(self, frame, label, x1, y1, x2, y2):
         z_liggend, z_staand = Z_PER_KLASSE.get(label, (10.0, 10.0))
 
-        if label == 'Octagon':
-            # Staande Octagon is rond → bbox ~vierkant
-            # Liggende Octagon is breed → breedte > hoogte * ratio
-            liggend = (bbox_w / bbox_h) > LIGGEND_RATIO
-            return z_liggend if liggend else z_staand
-        else:
-            # Balk/Maan: staand = hoogte > breedte
-            staand = (bbox_h / bbox_w) > STAAND_RATIO
+        if label == 'Kubus':
+            return z_liggend
+
+        drempel = MAAN_ASPECT_DREMPEL if label == 'Maan' else STAAND_ASPECT_DREMPEL
+
+        contour, _, _ = self._get_contour(frame, x1, y1, x2, y2)
+
+        if contour is None:
+            bbox_w = max(x2 - x1, 1)
+            bbox_h = max(y2 - y1, 1)
+            ratio = min(bbox_w, bbox_h) / max(bbox_w, bbox_h)
+            staand = ratio < drempel
+            self.get_logger().info(
+                f"BBOX FALLBACK {label}: ratio={ratio:.2f} drempel={drempel:.2f} staand={staand}")
             return z_staand if staand else z_liggend
 
-    # ------------------------------------------------------------------
-    # Rotatie van object
+        _, (rw, rh), _ = cv2.minAreaRect(contour)
+        if rw == 0 or rh == 0:
+            return z_liggend
+
+        ratio = min(rw, rh) / max(rw, rh)
+        staand = ratio < drempel
+
+        self.get_logger().info(
+            f"MINAREARECT {label}: rw={rw:.0f} rh={rh:.0f} "
+            f"ratio={ratio:.2f} drempel={drempel:.2f} staand={staand} "
+            f"z={'staand' if staand else 'liggend'}")
+
+        return z_staand if staand else z_liggend
+
     # ------------------------------------------------------------------
     @staticmethod
     def _get_rotation(frame, x1, y1, x2, y2, margin=4):
@@ -265,46 +280,81 @@ class VisionNode(Node):
         return round(angle, 1)
 
     # ------------------------------------------------------------------
-    # Centroide
-    # ------------------------------------------------------------------
-    @staticmethod
-    def _get_centroid(frame, x1, y1, x2, y2, margin=4):
-        h, w = frame.shape[:2]
-        cx0 = max(0, x1-margin); cy0 = max(0, y1-margin)
-        cx1 = min(w, x2+margin); cy1 = min(h, y2+margin)
-        roi = frame[cy0:cy1, cx0:cx1]
+    def _get_centroid(self, frame, x1, y1, x2, y2, label='', margin=4):
         bbox_cx = (x1 + x2) // 2
         bbox_cy = (y1 + y2) // 2
-        if roi.size == 0:
+
+        contour, cx0, cy0 = self._get_contour(frame, x1, y1, x2, y2, margin)
+
+        if contour is None:
             return bbox_cx, bbox_cy
-        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-        _, mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        if not contours:
-            return bbox_cx, bbox_cy
-        largest = max(contours, key=cv2.contourArea)
-        M = cv2.moments(largest)
+
+        _, (rw, rh), _ = cv2.minAreaRect(contour)
+        rect_ratio = min(rw, rh) / max(rw, rh) if max(rw, rh) > 0 else 1.0
+        drempel = MAAN_ASPECT_DREMPEL if label == 'Maan' else STAAND_ASPECT_DREMPEL
+        is_staand = rect_ratio < drempel
+
+        if label == 'Maan' and is_staand:
+            rect = cv2.minAreaRect(contour)
+            (rect_cx, rect_cy), (rw2, rh2), _ = rect
+
+            diameter = min(rw2, rh2)
+            offset_px = (0.5 - MAAN_CM_FACTOR) * diameter
+
+            rect_cx_frame = cx0 + rect_cx
+            rect_cy_frame = cy0 + rect_cy
+
+            M = cv2.moments(contour)
+            if M['m00'] > 0:
+                cont_cx = cx0 + M['m10'] / M['m00']
+                cont_cy = cy0 + M['m01'] / M['m00']
+                dx = cont_cx - rect_cx_frame
+                dy = cont_cy - rect_cy_frame
+                dist = np.sqrt(dx**2 + dy**2)
+            else:
+                dist = 0.0
+
+            if dist > 1.0:
+                nx = dx / dist
+                ny = dy / dist
+            else:
+                dx2 = rect_cx_frame - bbox_cx
+                dy2 = rect_cy_frame - bbox_cy
+                dist2 = np.sqrt(dx2**2 + dy2**2)
+                if dist2 > 1.0:
+                    nx = dx2 / dist2
+                    ny = dy2 / dist2
+                else:
+                    return bbox_cx, bbox_cy
+
+            final_cx = int(round(rect_cx_frame + nx * offset_px))
+            final_cy = int(round(rect_cy_frame + ny * offset_px))
+
+            self.get_logger().info(
+                f"MAAN DEBUG: rect_c=({rect_cx_frame:.0f},{rect_cy_frame:.0f}) "
+                f"dist={dist:.1f} offset={offset_px:.1f}px "
+                f"richting=({nx:.2f},{ny:.2f}) final=({final_cx},{final_cy})")
+
+            return final_cx, final_cy
+
+        M = cv2.moments(contour)
         if M['m00'] == 0:
             return bbox_cx, bbox_cy
-        return int(cx0 + M['m10']/M['m00']), int(cy0 + M['m01']/M['m00'])
+        return int(cx0 + M['m10'] / M['m00']), int(cy0 + M['m01'] / M['m00'])
 
-    # ------------------------------------------------------------------
-    # Crop werkgebied
     # ------------------------------------------------------------------
     def _get_crop(self, w, h):
         if self.marker_center_px is None or not self.marker_size_px:
             return 0, 0, w, h
-        px_per_mm   = self.marker_size_px / (ARUCO_MARKER_SIZE_M * 1000.0)
-        half_px     = (WORKSPACE_SIZE_MM / 2.0) * px_per_mm
-        cx, cy      = self.marker_center_px
-        x0 = int(max(0, cx - half_px));  y0 = int(max(0, cy - half_px))
-        x1 = int(min(w, cx + half_px));  y1 = int(min(h, cy + half_px))
-        if (x1-x0) < 50 or (y1-y0) < 50:
+        px_per_mm = self.marker_size_px / (ARUCO_MARKER_SIZE_M * 1000.0)
+        half_px   = (WORKSPACE_SIZE_MM / 2.0) * px_per_mm
+        cx, cy    = self.marker_center_px
+        x0 = int(max(0, cx - half_px)); y0 = int(max(0, cy - half_px))
+        x1 = int(min(w, cx + half_px)); y1 = int(min(h, cy + half_px))
+        if (x1 - x0) < 50 or (y1 - y0) < 50:
             return 0, 0, w, h
         return x0, y0, x1, y1
 
-    # ------------------------------------------------------------------
-    # YOLO inferentie
     # ------------------------------------------------------------------
     def _run_yolo(self, frame):
         h, w = frame.shape[:2]
@@ -313,11 +363,11 @@ class VisionNode(Node):
         cw, ch  = cropped.shape[1], cropped.shape[0]
         if cw == 0 or ch == 0:
             return None, (0, 0, 1.0, 1.0)
-        resized  = cv2.resize(cropped, YOLO_INPUT_SIZE)
-        scale_x  = cw / YOLO_INPUT_SIZE[0]
-        scale_y  = ch / YOLO_INPUT_SIZE[1]
-        results  = self.model.predict(resized, conf=self._conf_threshold,
-                                      iou=YOLO_IOU_THRESHOLD, verbose=False)
+        resized = cv2.resize(cropped, YOLO_INPUT_SIZE)
+        scale_x = cw / YOLO_INPUT_SIZE[0]
+        scale_y = ch / YOLO_INPUT_SIZE[1]
+        results = self.model.predict(resized, conf=self._conf_threshold,
+                                     iou=YOLO_IOU_THRESHOLD, verbose=False)
         return results, (x0, y0, scale_x, scale_y)
 
     @staticmethod
@@ -326,8 +376,6 @@ class VisionNode(Node):
         return (int(x0 + cx1*sx), int(y0 + cy1*sy),
                 int(x0 + cx2*sx), int(y0 + cy2*sy))
 
-    # ------------------------------------------------------------------
-    # Pipeline
     # ------------------------------------------------------------------
     def _run_pipeline(self):
         with dai.Pipeline() as pipeline:
@@ -366,7 +414,6 @@ class VisionNode(Node):
                 frame = self._enhance(rgb_data.getCvFrame())
                 self._detect_aruco(frame)
 
-                # Verhoog persist teller, verwijder oude detections
                 for key in list(self._persistent_detections):
                     self._persistent_detections[key]['frames_since_seen'] += 1
                     if self._persistent_detections[key]['frames_since_seen'] > PERSIST_FRAMES:
@@ -395,50 +442,49 @@ class VisionNode(Node):
                                 bbox_cx = (x1 + x2) // 2
                                 bbox_cy = (y1 + y2) // 2
 
-                                # Buiten crop? negeren
                                 if not (ci_x0 <= bbox_cx <= lim_x1 and
                                         ci_y0 <= bbox_cy <= lim_y1):
                                     continue
 
-                                # Centroide, rotatie, z
-                                x_px_raw, y_px_raw = self._get_centroid(frame, x1, y1, x2, y2)
-                                rot_deg    = self._get_rotation(frame, x1, y1, x2, y2)
-                                z_mm       = self._bepaal_z(label, x1, y1, x2, y2)
+                                x_px_raw, y_px_raw = self._get_centroid(
+                                    frame, x1, y1, x2, y2, label=label)
+                                rot_deg = self._get_rotation(frame, x1, y1, x2, y2)
+                                z_mm    = self._bepaal_z(frame, label, x1, y1, x2, y2)
 
-                                # Stabiel label via history
                                 pos_key = (x_px_raw // 80, y_px_raw // 80)
                                 self._label_history[pos_key].append(label)
                                 stable_label = max(
                                     set(self._label_history[pos_key]),
                                     key=list(self._label_history[pos_key]).count)
 
-                                # Centroide smoothing
+                                self._z_history[pos_key].append(z_mm)
+                                stable_z = max(
+                                    set(self._z_history[pos_key]),
+                                    key=list(self._z_history[pos_key]).count)
+
                                 self._centroid_history[pos_key].append((x_px_raw, y_px_raw))
-                                xs = [p[0] for p in self._centroid_history[pos_key]]
-                                ys = [p[1] for p in self._centroid_history[pos_key]]
+                                xs   = [p[0] for p in self._centroid_history[pos_key]]
+                                ys   = [p[1] for p in self._centroid_history[pos_key]]
                                 x_px = int(np.median(xs))
                                 y_px = int(np.median(ys))
 
-                                # Pixel → mm
                                 x_mm, y_mm = self._pixel_to_world_mm(x_px, y_px)
                                 if x_mm is None:
                                     continue
 
                                 self._persistent_detections[pos_key] = {
-                                    'label':            stable_label,
-                                    'confidence':       confidence,
+                                    'label':             stable_label,
+                                    'confidence':        confidence,
                                     'x_px': x_px, 'y_px': y_px,
                                     'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2,
-                                    'x_mm': x_mm, 'y_mm': y_mm, 'z_mm': z_mm,
-                                    'rotatie_deg':      rot_deg,
+                                    'x_mm': x_mm, 'y_mm': y_mm, 'z_mm': stable_z,
+                                    'rotatie_deg':       rot_deg,
                                     'frames_since_seen': 0,
                                 }
 
-                    # Crop rechthoek tekenen
                     cv2.rectangle(frame, (crop_x0, crop_y0), (crop_x1, crop_y1),
                                   (255, 0, 0), 2)
 
-                    # Publiceer + teken alle persistente detections
                     for det in self._persistent_detections.values():
                         msg = DetectieResultaat()
                         msg.klasse     = det['label']
@@ -470,15 +516,14 @@ class VisionNode(Node):
                     cv2.putText(frame, 'Wacht op marker kalibratie...',
                                 (10, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 165, 255), 2)
 
-                # Publiceer camerabeeld
-                pub_frame = cv2.resize(frame, (PUBLISH_WIDTH, PUBLISH_HEIGHT))
-                msg_img          = Image()
+                pub_frame            = cv2.resize(frame, (PUBLISH_WIDTH, PUBLISH_HEIGHT))
+                msg_img              = Image()
                 msg_img.header.stamp = self.get_clock().now().to_msg()
-                msg_img.height   = pub_frame.shape[0]
-                msg_img.width    = pub_frame.shape[1]
-                msg_img.encoding = 'bgr8'
-                msg_img.step     = pub_frame.shape[1] * 3
-                msg_img.data     = pub_frame.tobytes()
+                msg_img.height       = pub_frame.shape[0]
+                msg_img.width        = pub_frame.shape[1]
+                msg_img.encoding     = 'bgr8'
+                msg_img.step         = pub_frame.shape[1] * 3
+                msg_img.data         = pub_frame.tobytes()
                 self.pub_camera.publish(msg_img)
 
                 cv2.imshow('vision_node', pub_frame)
