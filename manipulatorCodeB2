@@ -21,15 +21,12 @@ from my_moveit_python import srdfGroupStates
 from my_moveit_python import MovegroupHelper
 import tf_transformations
 
-from unittest.mock import MagicMock
-from geometry_msgs.msg import TransformStamped
-from geometry_msgs.msg import PoseStamped
-
 from xarm_msgs.srv import VacuumGripperCtrl
 
 from enum import Enum
 from std_msgs.msg import Bool, String, Float32
 from std_srvs.srv import Trigger
+import json
 
 # Status van de robot
 class RobotState(Enum):
@@ -183,8 +180,8 @@ class manipulatorController(Node):
         Bool, "/manual_override", self.manual_override_cb, 10)
         # Service clients
         self.call_for_product = self.create_client(Trigger, "/call_for_product")
-        #while not self.call_for_product.wait_for_service(timeout_sec=3.0):
-        #    self.get_logger().info("Waiting for product service...")
+        while not self.call_for_product.wait_for_service(timeout_sec=3.0):
+            self.get_logger().info("Waiting for product service...")
 
     # --- Create callback functions here ---
 
@@ -267,10 +264,25 @@ class manipulatorController(Node):
             return False
 
         if result.success:
-            pos_str, rot_str = result.message.split("|")
 
-            self.transfer_translation = [float(x) for x in pos_str.split(",")]
-            self.transfer_rotation = [float(x) for x in rot_str.split(",")]
+            data = json.loads(result.message)
+
+            self.transfer_translation = [
+                data["x"] / 1000.0,
+                data["y"] / 1000.0,
+                data["z"] / 1000.0
+            ]
+
+            q = tf_transformations.quaternion_from_euler(
+                math.radians(180), 0, math.radians(data["z_rotatie"]))
+
+            self.transfer_rotation = list(q)
+
+            self.get_logger().info(
+                f"Ontvangen product: pos={self.transfer_translation}, "
+                f"rot={data['z_rotatie']}°"
+            )
+
             return True
 
         return False
@@ -466,7 +478,7 @@ class manipulatorController(Node):
                 
                 #for state in ["home", "left"]:
                 for state in ["left"]:
-                    self.move_to_state(state)
+                    self.safe_move_to_state(state)
                     time.sleep(0.1)
                 
                 self.state = RobotState.PLACE
