@@ -4,7 +4,7 @@
 # Studentnummer:
 # Datum:
 # Verklaring: Door het inleveren van dit bestand verklaar ik dat ik deze opdracht zelfstandig heb uitgevoerd en 
-# dat ik geen code van anderen heb gebruikt. Tevens ga ik akkoord met de beoordeling van deze opdracht.
+# dat ik geen code van anderen heb gebruikt. Tevens ga ik akkoord met de beodordeling van deze opdracht.
 
 from threading import Thread
 
@@ -209,9 +209,9 @@ class manipulatorController(Node):
             self.estop = False
             self.state = RobotState.HOME
 
-    def publish_error(self, text):
+    def publish_error(self):
         msg = Bool()
-        msg.data = text
+        msg.data = True
         self.error_pub.publish(msg)
 
     def publish_cycle_done(self):
@@ -243,24 +243,36 @@ class manipulatorController(Node):
         request = Trigger.Request()
 
         future = self.call_for_product.call_async(request)
-        self.get_logger().info("wachten op product...")
+        self.get_logger().info("Wachten op product...")
 
         while not future.done():
+
+            # Manual override
+            if self.manual_override:
+                self.get_logger().warn("Manual override tijdens wachten op product")
+                future.cancel()
+                return False
+
+            # E-stop
+            if self.estop:
+                self.get_logger().warn("E-stop tijdens wachten op product")
+                future.cancel()
+                return False
+
             time.sleep(0.05)
 
         result = future.result()
 
-        if result and future.success:
-            pose_str = result.message
-            # splitst positie en rotatie
-            pos_str, rot_str = pose_str.split("|")
+        if result is None:
+            return False
+
+        if result.success:
+            pos_str, rot_str = result.message.split("|")
 
             self.transfer_translation = [float(x) for x in pos_str.split(",")]
             self.transfer_rotation = [float(x) for x in rot_str.split(",")]
             return True
-        else:
-            self.get_logger().error("Service call failed")
-            return False
+
         return False
     
     def manual_override_cb(self, msg):
@@ -268,11 +280,6 @@ class manipulatorController(Node):
 
         if self.manual_override:
             self.get_logger().warn("MANUAL OVERRIDE ACTIVE → returning to HOME")
-
-            # stop alles en ga naar home
-            self.move_to_state("home")
-
-            self.state = RobotState.wachtOpStart
 
             # reset inputs zodat robot niet doorgaat
             self.transfer_translation = None
@@ -368,6 +375,10 @@ class manipulatorController(Node):
         while rclpy.ok():
 
             if self.manual_override:
+                self.get_logger().warn("Going home...")
+                self.safe_move_to_state("home")
+                self.state = RobotState.wachtOpStart
+                self.manual_override = False
                 time.sleep(0.1)
                 continue
 
@@ -378,6 +389,7 @@ class manipulatorController(Node):
             # ---------------- HOME / WAIT START ----------------
             if self.state == RobotState.wachtOpStart:
                 self.publish_handshake()
+                self.manual_override = False
 
                 if self.start_signal:
                     self.start_signal = False
@@ -391,13 +403,19 @@ class manipulatorController(Node):
             elif self.state == RobotState.wachtOpTransferFrame:
 
 
-                timeout = time.time() + 10.0
+                #timeout = time.time() + 10.0
                 
                 product_ok = self.call_for_product_location()
 
+                if self.manual_override:
+                    self.safe_move_to_state("home")
+                    self.manual_override = False
+                    self.state = RobotState.wachtOpStart
+                    continue
+
                 if not product_ok:
-                    self.publish_error("No transferframe received")
-                    self.move_to_state("home")
+                    self.publish_error()
+                    self.safe_move_to_state("home")
                     self.state = RobotState.wachtOpStart
                     continue
 
@@ -407,7 +425,7 @@ class manipulatorController(Node):
             elif self.state == RobotState.PRE_PICK:
                 
                 if self.transfer_translation is None:
-                    self.publish_error("No transfer data in PRE_PICK")
+                    self.publish_error()
                     self.state = RobotState.ERROR
                     continue
 
@@ -426,7 +444,7 @@ class manipulatorController(Node):
             elif self.state == RobotState.PICK:
 
                 if self.transfer_translation is None:
-                    self.publish_error("No transfer data in PICK")
+                    self.publish_error()
                     self.state = RobotState.ERROR
                     continue
 
