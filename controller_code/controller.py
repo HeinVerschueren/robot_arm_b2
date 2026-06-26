@@ -31,6 +31,9 @@ class Controller(Node):
         self.gekozen_product = None
         self.robot_status=None
         self.start_stop=False
+        self.cam_ready=False
+        self.robot_ready=False
+        self.cam_afgesloten=False
 ##################### publishers ########################
         self.HMI_camera_publisher = self.create_publisher(
             Image,    #type bericht sturen
@@ -43,7 +46,7 @@ class Controller(Node):
             'teller',   #welk ding sturen
             10   #backlog aan msg
         )
-        print("grippper")
+       
         self.gripper_status_publisher = self.create_publisher(
             Bool,    #type bericht sturen
             'gripper_status',   #welk ding sturen
@@ -61,7 +64,7 @@ class Controller(Node):
             'start_signal',   #welk ding sturen
             10   #backlog aan msg
         )
-        print("robot start")
+
         self.stop_robot_publisher = self.create_publisher(  
             Bool,    #type bericht sturen
             'stop_signal',   #welk ding sturen
@@ -73,13 +76,13 @@ class Controller(Node):
             'robot_mode',   #welk ding sturen
             10   #backlog aan msg
         )
-        print("bakken")
+
         self.bak_locatie_publisher = self.create_publisher(
             String,    #type bericht sturen <___________--- moet nog aangepast worden naar juiste type
             'bak_locatie',   #welk ding sturen
             10   #backlog aan msg
         )
-        print("reset robot")
+
         self.reset_robot_publisher = self.create_publisher(
             Bool,    #type bericht sturen
             'estop_reset',   #welk ding sturen
@@ -180,7 +183,6 @@ class Controller(Node):
             10    #backlog aan msg
         )
 
-        print("subscriber aangemaakt")
         self.object_detectie_sub = self.create_subscription(
            String,
            '/detectie_resultaten',
@@ -209,6 +211,27 @@ class Controller(Node):
             10    #backlog aan msg
         )
 
+        self.grijper_sub=self.create_subscription(  #maakt aan 
+            Bool,   #type bericht lezen
+            "/grijper",   #welk ding gesubscibt
+            self.grijper_callback,   #haalt data op
+            10    #backlog aan msg
+        )
+
+        self.cam_ready_sub=self.create_subscription(
+            Bool,
+            "/vision_gereed",
+            self.ready_cam_call,
+            10
+        )
+
+        self.cam_afgesloten_sub = self.create_client(
+            Bool,
+            '/afgesloten',
+            self.camera_afgesloten_call_back,
+            10
+        )
+
 ############# client/servies ##############
         self.cb_group = ReentrantCallbackGroup()
 
@@ -230,7 +253,10 @@ class Controller(Node):
     def start_stop_callback(self, msg):
         self.start_stop = msg.data
         if self.start_stop==True:
-            self.start_robot_publisher.publish(Bool(data=True))
+            if self.cam_ready==True and self.robot_ready==True:
+                self.start_robot_publisher.publish(Bool(data=True))
+            else:
+                pass
         elif self.start_stop==False:
             self.stop_robot_publisher.publish(Bool(data=True))
         else:
@@ -244,11 +270,17 @@ class Controller(Node):
         self.tekst = msg.data
         self.reset_robot_publisher.publish(msg)
 
+    def grijper_callback(self, msg):
+        grijper_stand=msg.data
+        self.gripper_status_publisher.publish(msg.data)
+
     def shut_down_callback(self, msg):
         self.tekst = msg.data
 
     def voice_on_callback(self, msg):
-        self.tekst = msg.data
+        shut_down = msg.data
+        if shut_down==True:
+            self.afsluiten()
 
     def snelheid_callback(self, msg):
         snelheid_procent = msg.data
@@ -280,7 +312,7 @@ class Controller(Node):
             self.object_resultaat = data
 
     def handshake_callback(self, msg):  #robot klaar voor opstarten
-        self.tekst = msg.data
+        self.robot_ready = msg.data
         self.robot_status="stand-by"
         self.robot_status_verzenden()
 
@@ -304,6 +336,12 @@ class Controller(Node):
 
         print("service einde")
         return self.product_response
+    
+    def ready_cam_call(self,msg):
+        self.cam_ready=msg.data
+
+    def camera_afgesloten_call_back(self,msg):
+        self.cam_afgesloten=msg.data
 
 ############ publishers en zo###############################
     def robot_status_verzenden(self):
@@ -476,7 +514,15 @@ class Controller(Node):
         self.octagon_teller += 1
         self.teller_verzenden()
 
-        
+    def afsluiten(self):
+         self.shutdown_timer = self.create_timer(0.1, self._check_afsluiten)
+
+    def _check_afsluiten(self):
+        if self.cam_afgesloten:
+            self.shutdown_timer.cancel()
+            self.destroy_node()
+            rclpy.shutdown()
+
 
 def main():
     rclpy.init()
