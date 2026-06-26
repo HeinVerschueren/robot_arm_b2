@@ -119,6 +119,12 @@ class Controller(Node):
             10
         )
 
+        self.manual_override_pub=self.create_publisher(
+            Bool,
+            'manual_override',
+            10
+        )
+
 ###########subscriptions##########
         self.start_stop_subsriber=self.create_subscription(  #maakt aan 
             Bool,   #type bericht lezen
@@ -275,12 +281,13 @@ class Controller(Node):
         self.gripper_status_publisher.publish(msg.data)
 
     def shut_down_callback(self, msg):
-        self.tekst = msg.data
-
-    def voice_on_callback(self, msg):
         shut_down = msg.data
         if shut_down==True:
             self.afsluiten()
+
+    def voice_on_callback(self, msg):
+        self.tekst=msg.data
+
 
     def snelheid_callback(self, msg):
         snelheid_procent = msg.data
@@ -298,7 +305,7 @@ class Controller(Node):
         self.confidance_drempel_pub.publish(msg)
 
     def manual_overide_callback(self, msg):
-        self.tekst = msg.data
+        self.manual_override_pub.publish(msg)
 
     def camera_callback(self, msg):
         self.HMI_camera_publisher.publish(msg)  # Publish the image to the HMI camera topic
