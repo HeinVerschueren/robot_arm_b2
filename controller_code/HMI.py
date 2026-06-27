@@ -1,5 +1,4 @@
 from numpy import int32
-
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
@@ -513,9 +512,9 @@ class HMI(Node):
     def update_camera(self):
         if self.latest_frame is not None:
 
-            ##image = Image.fromarray(self.latest_frame)###<---- code voor op echte camera
-            image_1 = cv2.imread("/home/student/ros2_industrial_ws/robot_arm_b2/controller_code/test/test_camera_beeld.jpg")  ###<---- code voor test camera
-            image_size=cv2.resize(image_1, (640, 480))
+            image = Image.fromarray(self.latest_frame)###<---- code voor op echte camera
+            ##image_1 = cv2.imread("/home/student/ros2_industrial_ws/robot_arm_b2/controller_code/test/test_camera_beeld.jpg")  ###<---- code voor test camera
+            image_size=cv2.resize(image, (640, 480))
             # schaal naar gewenste grootte
             image_pil = Image.fromarray(image_size)
             #cv2/numpy naar pil image
