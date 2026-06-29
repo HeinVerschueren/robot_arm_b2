@@ -1,3 +1,4 @@
+import numpy as np
 from numpy import int32
 import rclpy
 from rclpy.node import Node
@@ -140,6 +141,7 @@ class HMI(Node):
         self.maan_button = tk.Button(  #make button
             self.root, #put it in window
             text="Maan", #text on the button
+            state="disabled",
             command=lambda:   ##do function when activated
             self.keuze_gemaakt("Maan")
             ) 
@@ -148,6 +150,7 @@ class HMI(Node):
         self.kubus_button = tk.Button(  #make button
             self.root, #put it in window
             text="Kubus", #text on the button
+            state="disabled",
             command=lambda:   #do function when activated
             self.keuze_gemaakt("Kubus")  #wait for user to make choice
             ) 
@@ -156,6 +159,7 @@ class HMI(Node):
         self.balk_button = tk.Button(  #make button
             self.root, #put it in window
             text="Balk", #text on the button
+            state="disabled",
             command=lambda:   #do function when activated
             self.keuze_gemaakt("Balk")  #wait for user to make choice
             ) 
@@ -164,6 +168,7 @@ class HMI(Node):
         self.octagon_button = tk.Button(  #make button
             self.root, #put it in window
             text="Octagon", #text on the button
+            state="disabled",
             command=lambda:   #do function when activated
             self.keuze_gemaakt("Octagon")
             ) 
@@ -272,7 +277,7 @@ class HMI(Node):
         self.status_label_robot.grid(row=1, column=2, padx=20, pady=5, sticky="n")
 
         self.keuze_Status = tk.StringVar()
-        self.keuze_Status.set("bezig")
+        self.keuze_Status.set("wacht op controller")
 
         self.status_label_keuze = tk.Label( #keuze status label
             self.root,
@@ -320,16 +325,16 @@ class HMI(Node):
 
 ############ end init #########################
     def ros_thread(self):
-        while rclpy.ok():
+        while rclpy.ok():  #hmi en ros2 uit elkaar anders blokeren ze elkaar
             rclpy.spin_once(self, timeout_sec=0.01)
 
     def run(self):
-        threading.Thread(
+        threading.Thread(  #zorg dat ros runnend
             target=self.ros_thread,
             daemon=True
         ).start()
 
-        self.root.mainloop()
+        self.root.mainloop()  #zorgt dat hmi verschijnt en werkt
 
 ####### knoppen functies ############
     def close(self):  #stopt alles
@@ -367,31 +372,31 @@ class HMI(Node):
         self.publisher_voice_on.publish(msg)
 
     def snelheid_zendt(self):
-        raw_snelheid=self.number_var_snelheid.get()
-        check_snelheid=float(raw_snelheid)
+        raw_snelheid=self.number_var_snelheid.get()  #pakt snelheid uit invoervlak
+        check_snelheid=float(raw_snelheid) #zorg dat snelheid niet ongeldige waarde heeft
         if check_snelheid > 100:
             snelheid=100
         elif check_snelheid < 0:
             snelheid=0
         else:
             snelheid=check_snelheid
-        snelheid_float=float(snelheid)
+        snelheid_float=float(snelheid) #zorg ervoor dat het zeker een float is
         msg=Float32()
         msg.data=snelheid_float
         self.snelheid_bezig(snelheid_float)
         self.publisher_snelheid.publish(msg)
 
     def threshold_zendt(self):
-        raw_threshold=self.number_var_threshold.get()
+        raw_threshold=self.number_var_threshold.get()#krijg uit invoervlak
         check_threshold=float(raw_threshold)
-        if check_threshold > 100:
+        if check_threshold > 100:#geen ongeldig waarde
             threshold=100
         elif check_threshold < 0:
             threshold=0
         else: 
             threshold=check_threshold
-        threshold_float=float(threshold)
-        msg=Float32()
+        threshold_float=float(threshold)  #zeker een float
+        msg=Float32()  
         msg.data=threshold_float
         self.threshold_bezig(threshold_float)
         self.publisher_threshold.publish(msg)  
@@ -445,7 +450,7 @@ class HMI(Node):
     def Image_callback(self, msg):
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         self.latest_frame = frame
-        self.root.after(0, self.update_camera)
+        self.root.after(0, self.update_camera) #zorg voor beeld update in hmi
 
     def gripper_status_callback(self, msg):
         gripper=msg.data
@@ -487,42 +492,54 @@ class HMI(Node):
        
        return self.keuze_response
     
-    def enable_keuze_knoppen(self):
+    def enable_keuze_knoppen(self): #zorg dat je knoppen kunt induwen
         self.maan_button.config(state="normal")
         self.octagon_button.config(state="normal")
         self.balk_button.config(state="normal")
         self.kubus_button.config(state="normal")
 
-    def keuze_gemaakt(self, keuze):
-        if not self.keuze_active:
-           return
+    def keuze_gemaakt(self, keuze):  #keuze product terug sturen
+        if not self.keuze_active:  #als niet actief
+            self.keuze_Status.set("Geen keuze actief")
+            self.status_label_keuze.config(bg="red")
+            return
 
-        self.keuze_response.success = True
+        self.keuze_response.success = True  #geef success terug met gekozen product
         self.keuze_response.message = keuze
 
         self.keuze_active = False
         self.keuze_event.set()
 
-        self.maan_button.config(state="disabled")
+        self.maan_button.config(state="disabled")  #disable knoppen
         self.octagon_button.config(state="disabled")
         self.balk_button.config(state="disabled")
         self.kubus_button.config(state="disabled")
 
 
     def update_camera(self):
-        if self.latest_frame is not None:
+        if self.latest_frame is None: #als het niets is dan ga terug
+            return
+        
+        image_1=self.latest_frame
 
-            image = Image.fromarray(self.latest_frame)###<---- code voor op echte camera
-            ##image_1 = cv2.imread("/home/student/ros2_industrial_ws/robot_arm_b2/controller_code/test/test_camera_beeld.jpg")  ###<---- code voor test camera
-            image_size=cv2.resize(image, (640, 480))
-            # schaal naar gewenste grootte
-            image_pil = Image.fromarray(image_size)
-            #cv2/numpy naar pil image
+        if isinstance(image_1, Image.Image):    #als het een image is van ros2 dan
+            image_1 = cv2.cvtColor(np.array(image_1), cv2.COLOR_RGB2BGR)
 
-            photo = ImageTk.PhotoImage(image_pil)
-            #pil image naar tk image
-            self.camera_label.config(image=photo)
-            self.camera_label.image = photo
+        if not isinstance(image_1, np.ndarray): #check of het een pil image is
+            print("update_camera: unexpected frame type:", type(image_1))
+            return
+
+        try: #probeer te resizen
+            image_size = cv2.resize(image_1, (640, 480))
+        except Exception as e:
+            print("update_camera: resize failed:", e)
+            return
+        
+        image_color=cv2.cvtColor(np.array(image_size), cv2.COLOR_BGR2RGB)
+        image_pil = Image.fromarray(image_color)#maak het image pil
+        photo = ImageTk.PhotoImage(image_pil) #maak image pil een tk image want anders werkt het niet
+        self.camera_label.config(image=photo)  #maak het beeld aan in de hmi
+        self.camera_label.image = photo
 
         
 
