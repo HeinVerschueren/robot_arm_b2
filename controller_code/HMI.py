@@ -325,16 +325,16 @@ class HMI(Node):
 
 ############ end init #########################
     def ros_thread(self):
-        while rclpy.ok():
+        while rclpy.ok():  #hmi en ros2 uit elkaar anders blokeren ze elkaar
             rclpy.spin_once(self, timeout_sec=0.01)
 
     def run(self):
-        threading.Thread(
+        threading.Thread(  #zorg dat ros runnend
             target=self.ros_thread,
             daemon=True
         ).start()
 
-        self.root.mainloop()
+        self.root.mainloop()  #zorgt dat hmi verschijnt en werkt
 
 ####### knoppen functies ############
     def close(self):  #stopt alles
@@ -372,31 +372,31 @@ class HMI(Node):
         self.publisher_voice_on.publish(msg)
 
     def snelheid_zendt(self):
-        raw_snelheid=self.number_var_snelheid.get()
-        check_snelheid=float(raw_snelheid)
+        raw_snelheid=self.number_var_snelheid.get()  #pakt snelheid uit invoervlak
+        check_snelheid=float(raw_snelheid) #zorg dat snelheid niet ongeldige waarde heeft
         if check_snelheid > 100:
             snelheid=100
         elif check_snelheid < 0:
             snelheid=0
         else:
             snelheid=check_snelheid
-        snelheid_float=float(snelheid)
+        snelheid_float=float(snelheid) #zorg ervoor dat het zeker een float is
         msg=Float32()
         msg.data=snelheid_float
         self.snelheid_bezig(snelheid_float)
         self.publisher_snelheid.publish(msg)
 
     def threshold_zendt(self):
-        raw_threshold=self.number_var_threshold.get()
+        raw_threshold=self.number_var_threshold.get()#krijg uit invoervlak
         check_threshold=float(raw_threshold)
-        if check_threshold > 100:
+        if check_threshold > 100:#geen ongeldig waarde
             threshold=100
         elif check_threshold < 0:
             threshold=0
         else: 
             threshold=check_threshold
-        threshold_float=float(threshold)
-        msg=Float32()
+        threshold_float=float(threshold)  #zeker een float
+        msg=Float32()  
         msg.data=threshold_float
         self.threshold_bezig(threshold_float)
         self.publisher_threshold.publish(msg)  
@@ -450,7 +450,7 @@ class HMI(Node):
     def Image_callback(self, msg):
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         self.latest_frame = frame
-        self.root.after(0, self.update_camera)
+        self.root.after(0, self.update_camera) #zorg voor beeld update in hmi
 
     def gripper_status_callback(self, msg):
         gripper=msg.data
@@ -492,25 +492,25 @@ class HMI(Node):
        
        return self.keuze_response
     
-    def enable_keuze_knoppen(self):
+    def enable_keuze_knoppen(self): #zorg dat je knoppen kunt induwen
         self.maan_button.config(state="normal")
         self.octagon_button.config(state="normal")
         self.balk_button.config(state="normal")
         self.kubus_button.config(state="normal")
 
-    def keuze_gemaakt(self, keuze):
-        if not self.keuze_active:
+    def keuze_gemaakt(self, keuze):  #keuze product terug sturen
+        if not self.keuze_active:  #als niet actief
             self.keuze_Status.set("Geen keuze actief")
             self.status_label_keuze.config(bg="red")
             return
 
-        self.keuze_response.success = True
+        self.keuze_response.success = True  #geef success terug met gekozen product
         self.keuze_response.message = keuze
 
         self.keuze_active = False
         self.keuze_event.set()
 
-        self.maan_button.config(state="disabled")
+        self.maan_button.config(state="disabled")  #disable knoppen
         self.octagon_button.config(state="disabled")
         self.balk_button.config(state="disabled")
         self.kubus_button.config(state="disabled")
@@ -522,7 +522,7 @@ class HMI(Node):
 
             image = Image.fromarray(self.latest_frame)###<---- code voor op echte camera
 
-        if isinstance(image_1, Image.Image):
+        if isinstance(image_1, Image.Image):  
             image_1 = cv2.cvtColor(np.array(image_1), cv2.COLOR_RGB2BGR)
 
         if not isinstance(image_1, np.ndarray):
