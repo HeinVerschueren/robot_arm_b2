@@ -21,15 +21,12 @@ from my_moveit_python import srdfGroupStates
 from my_moveit_python import MovegroupHelper
 import tf_transformations
 
-from unittest.mock import MagicMock
-from geometry_msgs.msg import TransformStamped
-from geometry_msgs.msg import PoseStamped
-
 from xarm_msgs.srv import VacuumGripperCtrl
 
 from enum import Enum
 from std_msgs.msg import Bool, String, Float32
 from std_srvs.srv import Trigger
+import json
 
 # Status van de robot
 class RobotState(Enum):
@@ -100,12 +97,6 @@ class manipulatorController(Node):
 
         self.estop = False
 
-        self.target_bin = 1
-        self.bin_positions = {
-        1: [0.13, -0.275, 0.25],  # links achter
-        2: [0.13, -0.175, 0.25],  # rechts achter
-        3: [0.25, -0.275, 0.25],  # links voor
-        4: [0.25, -0.175, 0.25]}   # rechts voor
         self.gripper = VacuumGripper()
 
         self.transfer_translation = None
@@ -143,7 +134,7 @@ class manipulatorController(Node):
 
         # --- Create subscribers, publishers, clients, timers here ---
 
-        self.get_logger().info("assignment1 node has been initialized.")
+        self.get_logger().info("manipulator node has been initialized.")
 
         # Publishers
         self.handshake_pub = self.create_publisher(Bool, "/handshake", 10)
@@ -163,28 +154,28 @@ class manipulatorController(Node):
         Bool, "/robot_mode", self.mode_cb, 10)
 
         self.bin_sub = self.create_subscription(
-        String, "/bin_location", self.bin_cb, 10)
-
+        String, "/bak_locatie", self.bin_cb, 10)
+        
+        '''
         self.estop_sub = self.create_subscription(
         Bool, "/estop", self.estop_cb, 10)
 
         self.reset_sub = self.create_subscription(
         Bool, "/estop_reset", self.reset_cb, 10)
+        '''
 
         self.speed_scale = 0.2  # default snelheid (50%)
 
         self.speed_sub = self.create_subscription(
         Float32, "/speed_scale", self.speed_cb, 10)
 
-        self.geen_product_sub = self.create_subscription(
-        Bool, "/geen_product", self.geen_product_cb, 10)
-
         self.manual_override_sub = self.create_subscription(
-        Bool, "/manual_override", self.manual_override_cb, 10)
+        Bool, "/manual_overide", self.manual_override_cb, 10)
+
         # Service clients
         self.call_for_product = self.create_client(Trigger, "/call_for_product")
-        #while not self.call_for_product.wait_for_service(timeout_sec=3.0):
-        #    self.get_logger().info("Waiting for product service...")
+        while not self.call_for_product.wait_for_service(timeout_sec=3.0):
+            self.get_logger().info("Waiting for product service...")
 
     # --- Create callback functions here ---
 
@@ -198,7 +189,19 @@ class manipulatorController(Node):
         self.mode_auto = msg.data
 
     def bin_cb(self, msg):
-        self.target_bin = msg.data
+        data = json.loads(msg.data)
+
+        self.bin_translation = [
+            data["x"],
+            data["y"],
+            data["z"]
+        ]
+
+        # vaste oriëntatie van de bak
+        self.bin_rotation = [1.0, 0.0, 0.0, 0.0]
+
+        self.get_logger().info(
+            f"Nieuwe baklocatie: {self.bin_translation}")
 
     def estop_cb(self, msg):
         self.estop = msg.data
@@ -234,11 +237,6 @@ class manipulatorController(Node):
         self.move_group.moveit2.max_velocity = scale
         self.move_group.moveit2.max_acceleration = scale
 
-    def geen_product_cb(self, msg):
-        self.geen_product = msg.data
-        self.get_logger().info(f"Geen product status: {msg.data}")
-
-
     def call_for_product_location(self):
         request = Trigger.Request()
 
@@ -267,10 +265,25 @@ class manipulatorController(Node):
             return False
 
         if result.success:
-            pos_str, rot_str = result.message.split("|")
 
-            self.transfer_translation = [float(x) for x in pos_str.split(",")]
-            self.transfer_rotation = [float(x) for x in rot_str.split(",")]
+            data = json.loads(result.message)
+
+            self.transfer_translation = [
+                data["x"] / 1000.0,
+                data["y"] / 1000.0,
+                data["z"] / 1000.0
+            ]
+
+            q = tf_transformations.quaternion_from_euler(
+                math.radians(180), 0, math.radians(data["z_rotatie"]))
+
+            self.transfer_rotation = list(q)
+
+            self.get_logger().info(
+                f"Ontvangen product: pos={self.transfer_translation}, "
+                f"rot={data['z_rotatie']}°"
+            )
+
             return True
 
         return False
@@ -323,7 +336,7 @@ class manipulatorController(Node):
     
 
     
-    def safe_move_to_pose(self, translation, rotation, retries=2):
+    def safe_move_to_pose(self, translation, rotation, retries=3):
 
         for attempt in range(retries):
 
@@ -343,7 +356,7 @@ class manipulatorController(Node):
         return False
 
 
-    def safe_move_to_state(self, state_name, retries=2):
+    def safe_move_to_state(self, state_name, retries=3):
 
         for attempt in range(retries):
 
@@ -430,7 +443,7 @@ class manipulatorController(Node):
                     continue
 
                 pre = self.transfer_translation.copy()
-                pre[2] += 0.05  # 5 cm boven object
+                pre[2] += 0.02  # 2 cm boven object
 
                 self.get_logger().info(f"pre_pick = {pre}")
 
@@ -465,8 +478,13 @@ class manipulatorController(Node):
             elif self.state == RobotState.MOVE_OVER:
                 
                 #for state in ["home", "left"]:
-                for state in ["left"]:
-                    self.move_to_state(state)
+                self.move_to_pose(translation=[0.20, 0.25, 0.20], 
+                                  rotation=[1, 0, 0, 0])
+                time.sleep(0.1)
+                self.move_to_state("right")
+
+                for state in ["right", "left"]:
+                    self.safe_move_to_state(state)
                     time.sleep(0.1)
                 
                 self.state = RobotState.PLACE
@@ -474,9 +492,9 @@ class manipulatorController(Node):
             # ---------------- PLACE ----------------
             elif self.state == RobotState.PLACE:
 
-                target = self.bin_positions[self.target_bin]
-
-                self.move_to_pose(target, [1.0, 0.0, 0.0, 0.0])
+                self.safe_move_to_pose(
+                    self.bin_translation,
+                    self.bin_rotation)
 
                 self.gripper.release()
 
@@ -551,19 +569,3 @@ def main(args=None):
 if __name__ == "__main__":
     main()
 
-
-#Dit is een ros2 programma. 
-# Kan je subscribers toevoegen voor alle functies. de robot moet als eerst in de home State staan. 
-# hier wacht de robot totdat er een signaal komt van het hoofdprogramma (hoofdprogramma is niet relevant. maak gewoon een subscriber aan.) 
-# de robot stuurt na het startsignaal een handshake terug. maak hiervoor een publisher. 
-# de robot gaat dan naar een positie toe boven een oppak plaats. als eerste de left State. 
-# vervolgens wordt er een transferframe gebruikt van een camera om een object op te pakken. 
-# als de robot geen transferframe krijgt van het hoofdprogramma stuurt het programma een error naar het hoofdprogramma. 
-# maak een subscriber voor de transferframe en een publisher voor de error. de robot gaat eerst 20 mm boven het object zweven en gaat daarna 20 mm omlaag om het object op te pakken. 
-# hierna gaat de robot over een schot heen naar de right state en vervolgens wordt het object in een bak gelegt. er zijn 4 bakken op verschillende locaties. 
-# het hoofdprogramma stuurt de locatie waar de robot naartoe moet. maak hier een subscriber voor. boven de bak laat de gripper het object los. 
-# hierna wordt een check gedaan of de robot in handmatige modus staat of auto modus. bij handmodus gaat de robot terug naar home State en bij auto gaat de robot terug naar de left State om een nieuw object op te pakken. 
-# als er een stopsignaal komt vanuit het hoofdprogramma dan loopt de robot de cyclus af en gaat daarna terug naar home State. 
-# als een cyclus is afgelopen stuurt het programma een singaal naar het hoofdprogramma. maak hiervoor een publisher.
-
-#Dit is een ros2 programma. Kan je subscribers toevoegen voor alle functies. de robot moet als eerst in de home State staan. hier wacht de robot totdat er een signaal komt van het hoofdprogramma (hoofdprogramma is niet relevant. maak gewoon een subscriber aan.) de robot stuurt na het startsignaal een handshake terug. maak hiervoor een publisher. de robot gaat dan naar een positie toe boven een oppak plaats. als eerste de left State. vervolgens wordt er een transferframe gebruikt van een camera om een object op te pakken. als de robot geen transferframe krijgt van het hoofdprogramma stuurt het programma een error naar het hoofdprogramma. maak een subscriber voor de transferframe en een publisher voor de error. de robot gaat eerst 20 mm boven het object zweven en gaat daarna 20 mm omlaag om het object op te pakken. hierna gaat de robot over een schot heen naar de right state en vervolgens wordt het object in een bak gelegt. er zijn 4 bakken op verschillende locaties. het hoofdprogramma stuurt de locatie waar de robot naartoe moet. maak hier een subscriber voor. boven de bak laat de gripper het object los. hierna wordt een check gedaan of de robot in handmatige modus staat of auto modus. bij handmodus gaat de robot terug naar home State en bij auto gaat de robot terug naar de left State om een nieuw object op te pakken. als er een stopsignaal komt vanuit het hoofdprogramma dan loopt de robot de cyclus af en gaat daarna terug naar home State. als een cyclus is afgelopen stuurt het programma een singaal naar het hoofdprogramma. maak hiervoor een publisher. de robot kan ook overschreven worden en teruggestuurd worden naar de home State. ook kan de noodstop ingedrukt worden. hiervoor moet een resetsignaal komen vannuit het hoofdprogramma.
