@@ -1,0 +1,6 @@
+{
+  "package_name": "frs_interfaces",
+  "non_idl_tuples": [
+    "/home/student/Vision/robot_arm_b2/frs_interfaces:msg/DetectieResultaat.msg"
+  ]
+}

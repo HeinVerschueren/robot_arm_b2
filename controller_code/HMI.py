@@ -1,3 +1,4 @@
+import numpy as np
 from numpy import int32
 import rclpy
 from rclpy.node import Node
@@ -140,6 +141,7 @@ class HMI(Node):
         self.maan_button = tk.Button(  #make button
             self.root, #put it in window
             text="Maan", #text on the button
+            state="disabled",
             command=lambda:   ##do function when activated
             self.keuze_gemaakt("Maan")
             ) 
@@ -148,6 +150,7 @@ class HMI(Node):
         self.kubus_button = tk.Button(  #make button
             self.root, #put it in window
             text="Kubus", #text on the button
+            state="disabled",
             command=lambda:   #do function when activated
             self.keuze_gemaakt("Kubus")  #wait for user to make choice
             ) 
@@ -156,6 +159,7 @@ class HMI(Node):
         self.balk_button = tk.Button(  #make button
             self.root, #put it in window
             text="Balk", #text on the button
+            state="disabled",
             command=lambda:   #do function when activated
             self.keuze_gemaakt("Balk")  #wait for user to make choice
             ) 
@@ -164,6 +168,7 @@ class HMI(Node):
         self.octagon_button = tk.Button(  #make button
             self.root, #put it in window
             text="Octagon", #text on the button
+            state="disabled",
             command=lambda:   #do function when activated
             self.keuze_gemaakt("Octagon")
             ) 
@@ -272,7 +277,7 @@ class HMI(Node):
         self.status_label_robot.grid(row=1, column=2, padx=20, pady=5, sticky="n")
 
         self.keuze_Status = tk.StringVar()
-        self.keuze_Status.set("bezig")
+        self.keuze_Status.set("wacht op controller")
 
         self.status_label_keuze = tk.Label( #keuze status label
             self.root,
@@ -495,7 +500,9 @@ class HMI(Node):
 
     def keuze_gemaakt(self, keuze):
         if not self.keuze_active:
-           return
+            self.keuze_Status.set("Geen keuze actief")
+            self.status_label_keuze.config(bg="red")
+            return
 
         self.keuze_response.success = True
         self.keuze_response.message = keuze
@@ -510,19 +517,28 @@ class HMI(Node):
 
 
     def update_camera(self):
-        if self.latest_frame is not None:
+        if self.latest_frame is None:
+            return
 
             image = Image.fromarray(self.latest_frame)###<---- code voor op echte camera
-            ##image_1 = cv2.imread("/home/student/ros2_industrial_ws/robot_arm_b2/controller_code/test/test_camera_beeld.jpg")  ###<---- code voor test camera
-            image_size=cv2.resize(image, (640, 480))
-            # schaal naar gewenste grootte
-            image_pil = Image.fromarray(image_size)
-            #cv2/numpy naar pil image
 
-            photo = ImageTk.PhotoImage(image_pil)
-            #pil image naar tk image
-            self.camera_label.config(image=photo)
-            self.camera_label.image = photo
+        if isinstance(image_1, Image.Image):
+            image_1 = cv2.cvtColor(np.array(image_1), cv2.COLOR_RGB2BGR)
+
+        if not isinstance(image_1, np.ndarray):
+            print("update_camera: unexpected frame type:", type(image_1))
+            return
+
+        try:
+            image_size = cv2.resize(image_1, (640, 480))
+        except Exception as e:
+            print("update_camera: resize failed:", e)
+            return
+
+        image_pil = Image.fromarray(image_size)
+        photo = ImageTk.PhotoImage(image_pil)
+        self.camera_label.config(image=photo)
+        self.camera_label.image = photo
 
         
 

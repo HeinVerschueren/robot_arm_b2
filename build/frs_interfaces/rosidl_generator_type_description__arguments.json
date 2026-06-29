@@ -1,0 +1,7 @@
+{
+  "package_name": "frs_interfaces",
+  "output_dir": "/home/student/Vision/robot_arm_b2/build/frs_interfaces/rosidl_generator_type_description/frs_interfaces",
+  "idl_tuples": [
+    "/home/student/Vision/robot_arm_b2/build/frs_interfaces/rosidl_adapter/frs_interfaces:msg/DetectieResultaat.idl"
+  ]
+}

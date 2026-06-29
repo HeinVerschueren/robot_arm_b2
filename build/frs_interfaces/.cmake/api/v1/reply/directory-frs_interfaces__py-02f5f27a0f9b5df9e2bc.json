@@ -1,0 +1,14 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : [],
+		"files" : [],
+		"nodes" : []
+	},
+	"installers" : [],
+	"paths" : 
+	{
+		"build" : "frs_interfaces__py",
+		"source" : "/home/student/Vision/robot_arm_b2/build/frs_interfaces/frs_interfaces__py"
+	}
+}

@@ -1,0 +1,8 @@
+setup.py
+frs_interfaces/__init__.py
+frs_interfaces.egg-info/PKG-INFO
+frs_interfaces.egg-info/SOURCES.txt
+frs_interfaces.egg-info/dependency_links.txt
+frs_interfaces.egg-info/top_level.txt
+frs_interfaces/msg/__init__.py
+frs_interfaces/msg/_detectie_resultaat.py

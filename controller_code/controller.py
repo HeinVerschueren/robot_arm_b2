@@ -1,3 +1,12 @@
+import os
+import sys
+from pathlib import Path
+
+WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
+ROS_SITE_PACKAGES = WORKSPACE_ROOT / 'install' / 'frs_interfaces' / 'lib' / f'python{sys.version_info.major}.{sys.version_info.minor}' / 'site-packages'
+if ROS_SITE_PACKAGES.exists() and str(ROS_SITE_PACKAGES) not in sys.path:
+    sys.path.insert(0, str(ROS_SITE_PACKAGES))
+
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
@@ -16,13 +25,13 @@ import math
 import time
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.callback_groups import ReentrantCallbackGroup
-
+from frs_interfaces.msg import DetectieResultaat
 
 class Controller(Node):
     def __init__(self):
         super().__init__('Controller')
         self.tekst = None
-        self.object_resultaat = None
+        self.object_resultaat = []
         self.automate = False
         self.maan_teller = 0
         self.kubus_teller = 0
@@ -96,30 +105,30 @@ class Controller(Node):
         )
 
         self.object_locatie_publisher = self.create_publisher(
-            String,    #type bericht sturen <___________--- moet nog aangepast worden naar juiste type
-            'aruco_pose',   #welk ding sturen
-            10   #backlog aan msg
+            String,    #type bericht sturen
+            'aruco_pose',
+            10
         )
-        print("geen product")
-        self.geen_product_publisher = self.create_publisher(#geen product gevonden stuur dit
+
+        self.geen_product_publisher = self.create_publisher(
             Bool,
             'geen_product',
             10
-        ) 
+        )
 
-        self.confidance_drempel_pub=self.create_publisher(
+        self.confidance_drempel_pub = self.create_publisher(
             Float32,
             'confidence_drempel',
             10
         )
 
-        self.speed_robot_pub=self.create_publisher(
+        self.speed_robot_pub = self.create_publisher(
             Float32,
             'speed_scale',
             10
         )
 
-        self.manual_override_pub=self.create_publisher(
+        self.manual_override_pub = self.create_publisher(
             Bool,
             'manual_override',
             10
@@ -190,10 +199,10 @@ class Controller(Node):
         )
 
         self.object_detectie_sub = self.create_subscription(
-           String,
-           '/detectie_resultaten',
-            self.object_detectie_callback,
-            10
+        DetectieResultaat,
+        '/detectie_resultaten',
+        self.object_detectie_callback,
+        10
         )
 
         self.handshake_sub=self.create_subscription(  #maakt aan 
@@ -231,7 +240,7 @@ class Controller(Node):
             10
         )
 
-        self.cam_afgesloten_sub = self.create_client(
+        self.cam_afgesloten_sub = self.create_subscription(
             Bool,
             '/afgesloten',
             self.camera_afgesloten_call_back,
@@ -277,8 +286,7 @@ class Controller(Node):
         self.reset_robot_publisher.publish(msg)
 
     def grijper_callback(self, msg):
-        grijper_stand=msg.data
-        self.gripper_status_publisher.publish(msg.data)
+        self.gripper_status_publisher.publish(msg)
 
     def shut_down_callback(self, msg):
         shut_down = msg.data
@@ -311,18 +319,27 @@ class Controller(Node):
         self.HMI_camera_publisher.publish(msg)  # Publish the image to the HMI camera topic
 
     def object_detectie_callback(self, msg):
-        data = json.loads(msg.data)
-        # Zorg altijd voor een lijst, of de node nu een dict of lijst stuurt anders krijg je een crash in product locatie
-        if isinstance(data, dict):
-            self.object_resultaat = [data]
+        resultaat = {
+            'LABELS':      msg.klasse,
+            'x_mm':        msg.x,
+            'y_mm':        msg.y,
+            'hoogte_mm':   msg.z,
+            'rotatie_deg': msg.rotatie,
+        }
+        if self.object_resultaat is None:
+            self.object_resultaat = [resultaat]
         else:
-            self.object_resultaat = data
+            for i, obj in enumerate(self.object_resultaat):
+                if obj['LABELS'] == msg.klasse:
+                    self.object_resultaat[i] = resultaat
+                    return
+            self.object_resultaat.append(resultaat)
 
     def handshake_callback(self, msg):  #robot klaar voor opstarten
         self.robot_ready = msg.data
         self.robot_status="stand-by"
         self.robot_status_verzenden()
-
+    
     def robot_error_callback(self, msg):    
         self.tekst = msg.data
         self.robot_status="error"
@@ -339,9 +356,13 @@ class Controller(Node):
         self.robot_status="busy"
         self.robot_status_verzenden()
 
+        self.get_logger().info(f"Product service gestart; detecties beschikbaar={len(self.object_resultaat)}")
+        for obj in self.object_resultaat:
+            self.get_logger().info(f"  detectie item: {obj}")
+
         self.stuur_product_locatie()
 
-        print("service einde")
+        self.get_logger().info("service einde")
         return self.product_response
     
     def ready_cam_call(self,msg):
@@ -356,6 +377,14 @@ class Controller(Node):
         msg.data=self.robot_status
         self.robot_status_publisher.publish(msg)
 
+    def publish_product_feedback(self, found: bool):
+        msg = Bool()
+        msg.data = not found
+        self.geen_product_publisher.publish(msg)
+        if found:
+            self.get_logger().info("Product gevonden")
+        else:
+            self.get_logger().warn("Geen product gevonden")
 
     def teller_verzenden(self):
         teller_msg = Int32MultiArray()
@@ -372,19 +401,21 @@ class Controller(Node):
         while not future.done():
             time.sleep(0.05)  # 50ms wachten per iteratie
 
-        if future.result():
-            self.gekozen_product = future.result().message
-            print({self.gekozen_product})
+        result = future.result()
+        if result and result.message:
+            self.gekozen_product = result.message
+            self.get_logger().info(f"Gekozen product: {self.gekozen_product}")
             return self.gekozen_product
 
-        self.get_logger().error("Service failed")
+        self.get_logger().error("Product keuze service gaf geen geldig antwoord")
         return None
         
     def stuur_product_locatie(self):  #stuur gekozen product lokatie
-        if self.object_resultaat is None:  #geen object is er
+        if not self.object_resultaat:  #geen object is er
             self.get_logger().warn("Nog geen detectie resultaten beschikbaar")
             self.product_response.success = False
             self.product_response.message = "geen product gevonden"
+            self.publish_product_feedback(False)
             return
 
         data_keuze = self.object_resultaat.copy()  # altijd een lijst van dicts
@@ -392,6 +423,15 @@ class Controller(Node):
         if not self.automate:
             # --- Handmatig: zoek het object waarvan LABELS overeenkomt met de keuze ---
             self.product_keuze_call_client()
+
+            if self.gekozen_product is None:
+                self.get_logger().warn("Geen gekozen product ontvangen van de service")
+                self.product_response.success = False
+                self.product_response.message = "geen product gevonden"
+                self.publish_product_feedback(False)
+                return
+
+            self.get_logger().info(f"Gekozen product: {self.gekozen_product} ; beschikbare labels: {[obj['LABELS'] for obj in data_keuze]}")
 
             match = None
             for obj in data_keuze:
@@ -407,6 +447,7 @@ class Controller(Node):
                 self.get_logger().warn("Geen match gevonden voor gekozen product")
                 self.product_response.success = False
                 self.product_response.message = "geen product gevonden"
+                self.publish_product_feedback(False)
 
         else:
         #  Automatisch: pak altijd het eerste object uit de lijst
@@ -419,6 +460,7 @@ class Controller(Node):
                 self.get_logger().warn("Lege lijst, geen product gevonden")
                 self.product_response.success = False
                 self.product_response.message = "geen product gevonden"
+                self.publish_product_feedback(False)
 
 
     def _stel_coordinaten_in(self, obj):
@@ -477,6 +519,7 @@ class Controller(Node):
             'z_rotatie':robot_rotatie}
         self.product_response.success=True
         self.product_response.message=json.dumps(cordinaten_product)
+        self.publish_product_feedback(True)
 
         
 
@@ -542,4 +585,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
