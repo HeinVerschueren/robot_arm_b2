@@ -97,12 +97,6 @@ class manipulatorController(Node):
 
         self.estop = False
 
-        self.target_bin = 1
-        self.bin_positions = {
-        1: [0.13, -0.275, 0.25],  # links achter
-        2: [0.13, -0.175, 0.25],  # rechts achter
-        3: [0.25, -0.275, 0.25],  # links voor
-        4: [0.25, -0.175, 0.25]}   # rechts voor
         self.gripper = VacuumGripper()
 
         self.transfer_translation = None
@@ -160,7 +154,7 @@ class manipulatorController(Node):
         Bool, "/robot_mode", self.mode_cb, 10)
 
         self.bin_sub = self.create_subscription(
-        String, "/bin_location", self.bin_cb, 10)
+        String, "/bak_locatie", self.bin_cb, 10)
         
         '''
         self.estop_sub = self.create_subscription(
@@ -176,7 +170,7 @@ class manipulatorController(Node):
         Float32, "/speed_scale", self.speed_cb, 10)
 
         self.manual_override_sub = self.create_subscription(
-        Bool, "/manual_override", self.manual_override_cb, 10)
+        Bool, "/manual_overide", self.manual_override_cb, 10)
 
         # Service clients
         self.call_for_product = self.create_client(Trigger, "/call_for_product")
@@ -195,7 +189,19 @@ class manipulatorController(Node):
         self.mode_auto = msg.data
 
     def bin_cb(self, msg):
-        self.target_bin = msg.data
+        data = json.loads(msg.data)
+
+        self.bin_translation = [
+            data["x"],
+            data["y"],
+            data["z"]
+        ]
+
+        # vaste oriëntatie van de bak
+        self.bin_rotation = [1.0, 0.0, 0.0, 0.0]
+
+        self.get_logger().info(
+            f"Nieuwe baklocatie: {self.bin_translation}")
 
     def estop_cb(self, msg):
         self.estop = msg.data
@@ -472,6 +478,11 @@ class manipulatorController(Node):
             elif self.state == RobotState.MOVE_OVER:
                 
                 #for state in ["home", "left"]:
+                self.move_to_pose(translation=[0.20, 0.25, 0.20], 
+                                  rotation=[1, 0, 0, 0])
+                time.sleep(0.1)
+                self.move_to_state("right")
+
                 for state in ["right", "left"]:
                     self.safe_move_to_state(state)
                     time.sleep(0.1)
@@ -481,9 +492,9 @@ class manipulatorController(Node):
             # ---------------- PLACE ----------------
             elif self.state == RobotState.PLACE:
 
-                target = self.bin_positions[self.target_bin]
-
-                self.move_to_pose(target, [1.0, 0.0, 0.0, 0.0])
+                self.safe_move_to_pose(
+                    self.bin_translation,
+                    self.bin_rotation)
 
                 self.gripper.release()
 
