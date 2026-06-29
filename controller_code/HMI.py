@@ -517,27 +517,28 @@ class HMI(Node):
 
 
     def update_camera(self):
-        if self.latest_frame is None:
+        if self.latest_frame is None: #als het niets is dan ga terug
             return
+        
+        image_1=self.latest_frame
 
-            image = Image.fromarray(self.latest_frame)###<---- code voor op echte camera
-
-        if isinstance(image_1, Image.Image):  
+        if isinstance(image_1, Image.Image):    #als het een image is van ros2 dan
             image_1 = cv2.cvtColor(np.array(image_1), cv2.COLOR_RGB2BGR)
 
-        if not isinstance(image_1, np.ndarray):
+        if not isinstance(image_1, np.ndarray): #check of het een pil image is
             print("update_camera: unexpected frame type:", type(image_1))
             return
 
-        try:
+        try: #probeer te resizen
             image_size = cv2.resize(image_1, (640, 480))
         except Exception as e:
             print("update_camera: resize failed:", e)
             return
-
-        image_pil = Image.fromarray(image_size)
-        photo = ImageTk.PhotoImage(image_pil)
-        self.camera_label.config(image=photo)
+        
+        image_color=cv2.cvtColor(np.array(image_size), cv2.COLOR_BGR2RGB)
+        image_pil = Image.fromarray(image_color)#maak het image pil
+        photo = ImageTk.PhotoImage(image_pil) #maak image pil een tk image want anders werkt het niet
+        self.camera_label.config(image=photo)  #maak het beeld aan in de hmi
         self.camera_label.image = photo
 
         
