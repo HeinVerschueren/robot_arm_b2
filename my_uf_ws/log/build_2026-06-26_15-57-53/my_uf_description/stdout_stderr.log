@@ -1,0 +1,13 @@
+running develop
+running egg_info
+writing my_uf_description.egg-info/PKG-INFO
+writing dependency_links to my_uf_description.egg-info/dependency_links.txt
+writing requirements to my_uf_description.egg-info/requires.txt
+writing top-level names to my_uf_description.egg-info/top_level.txt
+reading manifest file 'my_uf_description.egg-info/SOURCES.txt'
+writing manifest file 'my_uf_description.egg-info/SOURCES.txt'
+running build_ext
+Creating /home/student/my_uf_ws/install/my_uf_description/lib/python3.12/site-packages/my-uf-description.egg-link (link to .)
+
+Installed /home/student/my_uf_ws/build/my_uf_description
+running symlink_data

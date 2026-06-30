@@ -1,0 +1,39 @@
+[2.607s] Invoking command in '/home/student/my_uf_ws/build/my_uf_bringup': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/student/my_uf_ws/build/my_uf_bringup/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/student/my_uf_ws/install/my_uf_bringup/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/student/my_uf_ws/build/my_uf_bringup/build --no-deps symlink_data
+[3.414s] running develop
+[4.031s] running egg_info
+[4.031s] creating my_uf_bringup.egg-info
+[4.144s] writing my_uf_bringup.egg-info/PKG-INFO
+[4.144s] writing dependency_links to my_uf_bringup.egg-info/dependency_links.txt
+[4.144s] writing requirements to my_uf_bringup.egg-info/requires.txt
+[4.144s] writing top-level names to my_uf_bringup.egg-info/top_level.txt
+[4.144s] writing manifest file 'my_uf_bringup.egg-info/SOURCES.txt'
+[4.282s] reading manifest file 'my_uf_bringup.egg-info/SOURCES.txt'
+[4.283s] writing manifest file 'my_uf_bringup.egg-info/SOURCES.txt'
+[4.353s] running build_ext
+[4.354s] Creating /home/student/my_uf_ws/install/my_uf_bringup/lib/python3.12/site-packages/my-uf-bringup.egg-link (link to .)
+[4.355s] 
+[4.355s] Installed /home/student/my_uf_ws/build/my_uf_bringup
+[4.356s] running symlink_data
+[4.356s] creating /home/student/my_uf_ws/install/my_uf_bringup/share/ament_index
+[4.357s] creating /home/student/my_uf_ws/install/my_uf_bringup/share/ament_index/resource_index
+[4.357s] creating /home/student/my_uf_ws/install/my_uf_bringup/share/ament_index/resource_index/packages
+[4.358s] symbolically linking /home/student/my_uf_ws/build/my_uf_bringup/resource/my_uf_bringup -> /home/student/my_uf_ws/install/my_uf_bringup/share/ament_index/resource_index/packages
+[4.359s] symbolically linking /home/student/my_uf_ws/build/my_uf_bringup/package.xml -> /home/student/my_uf_ws/install/my_uf_bringup/share/my_uf_bringup
+[4.359s] creating /home/student/my_uf_ws/install/my_uf_bringup/share/my_uf_bringup/config
+[4.359s] symbolically linking /home/student/my_uf_ws/build/my_uf_bringup/config/xarm_api_params.yaml -> /home/student/my_uf_ws/install/my_uf_bringup/share/my_uf_bringup/config
+[4.360s] creating /home/student/my_uf_ws/install/my_uf_bringup/share/my_uf_bringup/launch
+[4.360s] symbolically linking /home/student/my_uf_ws/build/my_uf_bringup/launch/fake_robot.launch.py -> /home/student/my_uf_ws/install/my_uf_bringup/share/my_uf_bringup/launch
+[4.361s] symbolically linking /home/student/my_uf_ws/build/my_uf_bringup/launch/view_environment.launch.py -> /home/student/my_uf_ws/install/my_uf_bringup/share/my_uf_bringup/launch
+[4.361s] symbolically linking /home/student/my_uf_ws/build/my_uf_bringup/launch/simulation.launch.py -> /home/student/my_uf_ws/install/my_uf_bringup/share/my_uf_bringup/launch
+[4.365s] symbolically linking /home/student/my_uf_ws/build/my_uf_bringup/launch/movegroup.launch.py -> /home/student/my_uf_ws/install/my_uf_bringup/share/my_uf_bringup/launch
+[4.367s] symbolically linking /home/student/my_uf_ws/build/my_uf_bringup/launch/real_robot.launch.py -> /home/student/my_uf_ws/install/my_uf_bringup/share/my_uf_bringup/launch
+[4.368s] creating /home/student/my_uf_ws/install/my_uf_bringup/share/my_uf_bringup/launch/support
+[4.369s] symbolically linking /home/student/my_uf_ws/build/my_uf_bringup/launch/support/_gazebo_ign.launch.py -> /home/student/my_uf_ws/install/my_uf_bringup/share/my_uf_bringup/launch/support
+[4.369s] symbolically linking /home/student/my_uf_ws/build/my_uf_bringup/launch/support/_robot_moveit_common2.launch.py -> /home/student/my_uf_ws/install/my_uf_bringup/share/my_uf_bringup/launch/support
+[4.369s] creating /home/student/my_uf_ws/install/my_uf_bringup/share/my_uf_bringup/rviz
+[4.369s] symbolically linking /home/student/my_uf_ws/build/my_uf_bringup/rviz/fake_robot.rviz -> /home/student/my_uf_ws/install/my_uf_bringup/share/my_uf_bringup/rviz
+[4.369s] symbolically linking /home/student/my_uf_ws/build/my_uf_bringup/rviz/moveit.rviz -> /home/student/my_uf_ws/install/my_uf_bringup/share/my_uf_bringup/rviz
+[4.373s] symbolically linking /home/student/my_uf_ws/build/my_uf_bringup/rviz/environment.rviz -> /home/student/my_uf_ws/install/my_uf_bringup/share/my_uf_bringup/rviz
+[4.373s] creating /home/student/my_uf_ws/install/my_uf_bringup/share/my_uf_bringup/worlds
+[4.373s] symbolically linking /home/student/my_uf_ws/build/my_uf_bringup/worlds/empty_world.world -> /home/student/my_uf_ws/install/my_uf_bringup/share/my_uf_bringup/worlds
+[4.458s] Invoked command in '/home/student/my_uf_ws/build/my_uf_bringup' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/student/my_uf_ws/build/my_uf_bringup/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/student/my_uf_ws/install/my_uf_bringup/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/student/my_uf_ws/build/my_uf_bringup/build --no-deps symlink_data

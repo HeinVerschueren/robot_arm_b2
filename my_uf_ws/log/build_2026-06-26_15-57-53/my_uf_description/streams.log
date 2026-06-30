@@ -1,0 +1,15 @@
+[2.140s] Invoking command in '/home/student/my_uf_ws/build/my_uf_description': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/student/my_uf_ws/build/my_uf_description/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/student/my_uf_ws/install/my_uf_description/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/student/my_uf_ws/build/my_uf_description/build --no-deps symlink_data
+[2.855s] running develop
+[3.325s] running egg_info
+[3.390s] writing my_uf_description.egg-info/PKG-INFO
+[3.390s] writing dependency_links to my_uf_description.egg-info/dependency_links.txt
+[3.391s] writing requirements to my_uf_description.egg-info/requires.txt
+[3.392s] writing top-level names to my_uf_description.egg-info/top_level.txt
+[3.441s] reading manifest file 'my_uf_description.egg-info/SOURCES.txt'
+[3.443s] writing manifest file 'my_uf_description.egg-info/SOURCES.txt'
+[3.502s] running build_ext
+[3.552s] Creating /home/student/my_uf_ws/install/my_uf_description/lib/python3.12/site-packages/my-uf-description.egg-link (link to .)
+[3.554s] 
+[3.555s] Installed /home/student/my_uf_ws/build/my_uf_description
+[3.555s] running symlink_data
+[3.660s] Invoked command in '/home/student/my_uf_ws/build/my_uf_description' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/student/my_uf_ws/build/my_uf_description/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/student/my_uf_ws/install/my_uf_description/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/student/my_uf_ws/build/my_uf_description/build --no-deps symlink_data

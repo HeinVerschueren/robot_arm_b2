@@ -1,0 +1,1 @@
+/home/student/my_uf_ws/build/my_uf_moveit_config/ament_cmake_core/my_uf_moveit_configConfig-version.cmake

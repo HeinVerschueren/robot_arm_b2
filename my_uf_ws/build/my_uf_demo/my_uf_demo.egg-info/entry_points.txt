@@ -1,0 +1,2 @@
+[console_scripts]
+demo = my_uf_demo.demo:main

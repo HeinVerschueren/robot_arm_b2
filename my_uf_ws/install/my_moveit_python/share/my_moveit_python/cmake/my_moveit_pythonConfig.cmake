@@ -1,0 +1,1 @@
+/home/student/my_uf_ws/build/my_moveit_python/ament_cmake_core/my_moveit_pythonConfig.cmake

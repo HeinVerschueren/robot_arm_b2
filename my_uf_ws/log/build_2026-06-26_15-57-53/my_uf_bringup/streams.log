@@ -1,0 +1,15 @@
+[2.093s] Invoking command in '/home/student/my_uf_ws/build/my_uf_bringup': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/student/my_uf_ws/build/my_uf_bringup/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/student/my_uf_ws/install/my_uf_bringup/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/student/my_uf_ws/build/my_uf_bringup/build --no-deps symlink_data
+[2.833s] running develop
+[3.244s] running egg_info
+[3.307s] writing my_uf_bringup.egg-info/PKG-INFO
+[3.311s] writing dependency_links to my_uf_bringup.egg-info/dependency_links.txt
+[3.311s] writing requirements to my_uf_bringup.egg-info/requires.txt
+[3.312s] writing top-level names to my_uf_bringup.egg-info/top_level.txt
+[3.409s] reading manifest file 'my_uf_bringup.egg-info/SOURCES.txt'
+[3.411s] writing manifest file 'my_uf_bringup.egg-info/SOURCES.txt'
+[3.474s] running build_ext
+[3.475s] Creating /home/student/my_uf_ws/install/my_uf_bringup/lib/python3.12/site-packages/my-uf-bringup.egg-link (link to .)
+[3.475s] 
+[3.475s] Installed /home/student/my_uf_ws/build/my_uf_bringup
+[3.475s] running symlink_data
+[3.573s] Invoked command in '/home/student/my_uf_ws/build/my_uf_bringup' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/student/my_uf_ws/build/my_uf_bringup/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/student/my_uf_ws/install/my_uf_bringup/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/student/my_uf_ws/build/my_uf_bringup/build --no-deps symlink_data

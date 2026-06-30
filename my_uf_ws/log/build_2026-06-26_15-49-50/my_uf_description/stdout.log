@@ -1,0 +1,26 @@
+running develop
+running egg_info
+creating my_uf_description.egg-info
+writing my_uf_description.egg-info/PKG-INFO
+writing dependency_links to my_uf_description.egg-info/dependency_links.txt
+writing requirements to my_uf_description.egg-info/requires.txt
+writing top-level names to my_uf_description.egg-info/top_level.txt
+writing manifest file 'my_uf_description.egg-info/SOURCES.txt'
+reading manifest file 'my_uf_description.egg-info/SOURCES.txt'
+writing manifest file 'my_uf_description.egg-info/SOURCES.txt'
+running build_ext
+Creating /home/student/my_uf_ws/install/my_uf_description/lib/python3.12/site-packages/my-uf-description.egg-link (link to .)
+
+Installed /home/student/my_uf_ws/build/my_uf_description
+running symlink_data
+creating /home/student/my_uf_ws/install/my_uf_description/share/ament_index
+creating /home/student/my_uf_ws/install/my_uf_description/share/ament_index/resource_index
+creating /home/student/my_uf_ws/install/my_uf_description/share/ament_index/resource_index/packages
+symbolically linking /home/student/my_uf_ws/build/my_uf_description/resource/my_uf_description -> /home/student/my_uf_ws/install/my_uf_description/share/ament_index/resource_index/packages
+symbolically linking /home/student/my_uf_ws/build/my_uf_description/package.xml -> /home/student/my_uf_ws/install/my_uf_description/share/my_uf_description
+creating /home/student/my_uf_ws/install/my_uf_description/share/my_uf_description/launch
+symbolically linking /home/student/my_uf_ws/build/my_uf_description/launch/view_environment.launch.py -> /home/student/my_uf_ws/install/my_uf_description/share/my_uf_description/launch
+creating /home/student/my_uf_ws/install/my_uf_description/share/my_uf_description/urdf
+symbolically linking /home/student/my_uf_ws/build/my_uf_description/urdf/uf_robot.urdf.xacro -> /home/student/my_uf_ws/install/my_uf_description/share/my_uf_description/urdf
+creating /home/student/my_uf_ws/install/my_uf_description/share/my_uf_description/cfg
+symbolically linking /home/student/my_uf_ws/build/my_uf_description/cfg/view_robot.rviz -> /home/student/my_uf_ws/install/my_uf_description/share/my_uf_description/cfg

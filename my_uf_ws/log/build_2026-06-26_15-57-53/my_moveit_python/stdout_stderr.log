@@ -1,0 +1,35 @@
+Built target ament_cmake_python_symlink_my_moveit_python
+running egg_info
+writing my_moveit_python.egg-info/PKG-INFO
+writing dependency_links to my_moveit_python.egg-info/dependency_links.txt
+writing top-level names to my_moveit_python.egg-info/top_level.txt
+reading manifest file 'my_moveit_python.egg-info/SOURCES.txt'
+writing manifest file 'my_moveit_python.egg-info/SOURCES.txt'
+Built target ament_cmake_python_build_my_moveit_python_egg
+-- Install configuration: ""
+-- Execute custom install script
+-- Up-to-date symlink: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/environment/pythonpath.sh
+-- Up-to-date symlink: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/environment/pythonpath.dsv
+-- Up-to-date symlink: /home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python-4.0.0-py3.12.egg-info/PKG-INFO
+-- Up-to-date symlink: /home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python-4.0.0-py3.12.egg-info/SOURCES.txt
+-- Up-to-date symlink: /home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python-4.0.0-py3.12.egg-info/dependency_links.txt
+-- Up-to-date symlink: /home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python-4.0.0-py3.12.egg-info/top_level.txt
+-- Up-to-date symlink: /home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python/.gitignore
+-- Up-to-date symlink: /home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python/__init__.py
+-- Up-to-date symlink: /home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python/my_moveit_python.py
+-- Up-to-date symlink: /home/student/my_uf_ws/install/my_moveit_python/share/ament_index/resource_index/package_run_dependencies/my_moveit_python
+-- Up-to-date symlink: /home/student/my_uf_ws/install/my_moveit_python/share/ament_index/resource_index/parent_prefix_path/my_moveit_python
+-- Up-to-date symlink: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/environment/ament_prefix_path.sh
+-- Up-to-date symlink: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/environment/ament_prefix_path.dsv
+-- Up-to-date symlink: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/environment/path.sh
+-- Up-to-date symlink: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/environment/path.dsv
+-- Up-to-date symlink: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/local_setup.bash
+-- Up-to-date symlink: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/local_setup.sh
+-- Up-to-date symlink: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/local_setup.zsh
+-- Up-to-date symlink: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/local_setup.dsv
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/package.dsv
+-- Up-to-date symlink: /home/student/my_uf_ws/install/my_moveit_python/share/ament_index/resource_index/packages/my_moveit_python
+-- Up-to-date symlink: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/cmake/my_moveit_pythonConfig.cmake
+-- Up-to-date symlink: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/cmake/my_moveit_pythonConfig-version.cmake
+-- Up-to-date symlink: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/package.xml
+Listing '/home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python'...

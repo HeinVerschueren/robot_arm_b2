@@ -1,0 +1,1 @@
+/home/student/my_uf_ws/build/my_uf/ament_cmake_core/my_ufConfig.cmake

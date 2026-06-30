@@ -1,0 +1,63 @@
+[0.276s] Invoking command in '/home/student/my_uf_ws/build/my_moveit_python': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/student/my_depthai_ws/install/my_depthai_pose_estimation:/home/student/my_depthai_ws/install/my_depthai_python:/home/student/my_depthai_ws/install/my_depthai_object_tracking:/home/student/my_uf_ws/install/uf_ros_lib:/home/student/my_uf_ws/install/my_uf_demo:/home/student/my_uf_ws/install/my_uf_bringup:/home/student/ros2_industrial_ws/install/urdf_basics:/home/student/ros2_industrial_ws/install/transferframes:/home/student/ros2_industrial_ws/install/template_package_python:/home/student/ros2_industrial_ws/install/ros_industrial_utilities:/home/student/ros2_industrial_ws/install/ros_industrial_support:/home/student/ros2_industrial_ws/install/range_sensor:/home/student/ros2_industrial_ws/install/node_demo:/home/student/ros2_industrial_ws/install/manipulation:/home/student/ros2_industrial_ws/install/fanuc_robots:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake /home/student/my_uf_ws/src/my_moveit_python -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/student/my_uf_ws/install/my_moveit_python
+[0.363s] -- The C compiler identification is GNU 13.3.0
+[0.462s] -- The CXX compiler identification is GNU 13.3.0
+[0.503s] -- Detecting C compiler ABI info
+[0.640s] -- Detecting C compiler ABI info - done
+[0.652s] -- Check for working C compiler: /usr/bin/cc - skipped
+[0.653s] -- Detecting C compile features
+[0.653s] -- Detecting C compile features - done
+[0.664s] -- Detecting CXX compiler ABI info
+[0.858s] -- Detecting CXX compiler ABI info - done
+[0.877s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[0.877s] -- Detecting CXX compile features
+[0.879s] -- Detecting CXX compile features - done
+[0.891s] -- Found ament_cmake: 2.5.4 (/opt/ros/jazzy/share/ament_cmake/cmake)
+[1.258s] -- Found Python3: /usr/bin/python3 (found version "3.12.3") found components: Interpreter 
+[1.441s] -- Override CMake install command with custom implementation using symlinks instead of copying resources
+[1.975s] -- Configuring done (1.7s)
+[1.982s] -- Generating done (0.0s)
+[1.986s] -- Build files have been written to: /home/student/my_uf_ws/build/my_moveit_python
+[1.994s] Invoked command in '/home/student/my_uf_ws/build/my_moveit_python' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/student/my_depthai_ws/install/my_depthai_pose_estimation:/home/student/my_depthai_ws/install/my_depthai_python:/home/student/my_depthai_ws/install/my_depthai_object_tracking:/home/student/my_uf_ws/install/uf_ros_lib:/home/student/my_uf_ws/install/my_uf_demo:/home/student/my_uf_ws/install/my_uf_bringup:/home/student/ros2_industrial_ws/install/urdf_basics:/home/student/ros2_industrial_ws/install/transferframes:/home/student/ros2_industrial_ws/install/template_package_python:/home/student/ros2_industrial_ws/install/ros_industrial_utilities:/home/student/ros2_industrial_ws/install/ros_industrial_support:/home/student/ros2_industrial_ws/install/range_sensor:/home/student/ros2_industrial_ws/install/node_demo:/home/student/ros2_industrial_ws/install/manipulation:/home/student/ros2_industrial_ws/install/fanuc_robots:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake /home/student/my_uf_ws/src/my_moveit_python -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/student/my_uf_ws/install/my_moveit_python
+[1.997s] Invoking command in '/home/student/my_uf_ws/build/my_moveit_python': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/student/my_depthai_ws/install/my_depthai_pose_estimation:/home/student/my_depthai_ws/install/my_depthai_python:/home/student/my_depthai_ws/install/my_depthai_object_tracking:/home/student/my_uf_ws/install/uf_ros_lib:/home/student/my_uf_ws/install/my_uf_demo:/home/student/my_uf_ws/install/my_uf_bringup:/home/student/ros2_industrial_ws/install/urdf_basics:/home/student/ros2_industrial_ws/install/transferframes:/home/student/ros2_industrial_ws/install/template_package_python:/home/student/ros2_industrial_ws/install/ros_industrial_utilities:/home/student/ros2_industrial_ws/install/ros_industrial_support:/home/student/ros2_industrial_ws/install/range_sensor:/home/student/ros2_industrial_ws/install/node_demo:/home/student/ros2_industrial_ws/install/manipulation:/home/student/ros2_industrial_ws/install/fanuc_robots:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/student/my_uf_ws/build/my_moveit_python -- -j4 -l4
+[2.093s] Built target ament_cmake_python_symlink_my_moveit_python
+[2.533s] running egg_info
+[2.534s] creating my_moveit_python.egg-info
+[2.570s] writing my_moveit_python.egg-info/PKG-INFO
+[2.570s] writing dependency_links to my_moveit_python.egg-info/dependency_links.txt
+[2.570s] writing top-level names to my_moveit_python.egg-info/top_level.txt
+[2.570s] writing manifest file 'my_moveit_python.egg-info/SOURCES.txt'
+[2.701s] reading manifest file 'my_moveit_python.egg-info/SOURCES.txt'
+[2.702s] writing manifest file 'my_moveit_python.egg-info/SOURCES.txt'
+[2.756s] Built target ament_cmake_python_build_my_moveit_python_egg
+[2.780s] Invoked command in '/home/student/my_uf_ws/build/my_moveit_python' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/student/my_depthai_ws/install/my_depthai_pose_estimation:/home/student/my_depthai_ws/install/my_depthai_python:/home/student/my_depthai_ws/install/my_depthai_object_tracking:/home/student/my_uf_ws/install/uf_ros_lib:/home/student/my_uf_ws/install/my_uf_demo:/home/student/my_uf_ws/install/my_uf_bringup:/home/student/ros2_industrial_ws/install/urdf_basics:/home/student/ros2_industrial_ws/install/transferframes:/home/student/ros2_industrial_ws/install/template_package_python:/home/student/ros2_industrial_ws/install/ros_industrial_utilities:/home/student/ros2_industrial_ws/install/ros_industrial_support:/home/student/ros2_industrial_ws/install/range_sensor:/home/student/ros2_industrial_ws/install/node_demo:/home/student/ros2_industrial_ws/install/manipulation:/home/student/ros2_industrial_ws/install/fanuc_robots:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/student/my_uf_ws/build/my_moveit_python -- -j4 -l4
+[2.783s] Invoking command in '/home/student/my_uf_ws/build/my_moveit_python': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/student/my_depthai_ws/install/my_depthai_pose_estimation:/home/student/my_depthai_ws/install/my_depthai_python:/home/student/my_depthai_ws/install/my_depthai_object_tracking:/home/student/my_uf_ws/install/uf_ros_lib:/home/student/my_uf_ws/install/my_uf_demo:/home/student/my_uf_ws/install/my_uf_bringup:/home/student/ros2_industrial_ws/install/urdf_basics:/home/student/ros2_industrial_ws/install/transferframes:/home/student/ros2_industrial_ws/install/template_package_python:/home/student/ros2_industrial_ws/install/ros_industrial_utilities:/home/student/ros2_industrial_ws/install/ros_industrial_support:/home/student/ros2_industrial_ws/install/range_sensor:/home/student/ros2_industrial_ws/install/node_demo:/home/student/ros2_industrial_ws/install/manipulation:/home/student/ros2_industrial_ws/install/fanuc_robots:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --install /home/student/my_uf_ws/build/my_moveit_python
+[2.802s] -- Install configuration: ""
+[2.802s] -- Execute custom install script
+[2.803s] -- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/environment/pythonpath.sh
+[2.821s] -- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/environment/pythonpath.dsv
+[2.846s] -- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python-4.0.0-py3.12.egg-info/PKG-INFO
+[2.888s] -- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python-4.0.0-py3.12.egg-info/SOURCES.txt
+[2.907s] -- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python-4.0.0-py3.12.egg-info/dependency_links.txt
+[2.926s] -- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python-4.0.0-py3.12.egg-info/top_level.txt
+[2.949s] -- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python/.gitignore
+[2.964s] -- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python/__init__.py
+[2.985s] -- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python/my_moveit_python.py
+[3.004s] -- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/ament_index/resource_index/package_run_dependencies/my_moveit_python
+[3.033s] -- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/ament_index/resource_index/parent_prefix_path/my_moveit_python
+[3.051s] -- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/environment/ament_prefix_path.sh
+[3.071s] -- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/environment/ament_prefix_path.dsv
+[3.092s] -- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/environment/path.sh
+[3.117s] -- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/environment/path.dsv
+[3.143s] -- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/local_setup.bash
+[3.164s] -- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/local_setup.sh
+[3.185s] -- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/local_setup.zsh
+[3.203s] -- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/local_setup.dsv
+[3.228s] -- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/package.dsv
+[3.249s] -- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/ament_index/resource_index/packages/my_moveit_python
+[3.272s] -- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/cmake/my_moveit_pythonConfig.cmake
+[3.295s] -- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/cmake/my_moveit_pythonConfig-version.cmake
+[3.316s] -- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/package.xml
+[3.459s] Listing '/home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python'...
+[3.460s] Compiling '/home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python/__init__.py'...
+[3.460s] Compiling '/home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python/my_moveit_python.py'...
+[3.477s] Invoked command in '/home/student/my_uf_ws/build/my_moveit_python' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/student/my_depthai_ws/install/my_depthai_pose_estimation:/home/student/my_depthai_ws/install/my_depthai_python:/home/student/my_depthai_ws/install/my_depthai_object_tracking:/home/student/my_uf_ws/install/uf_ros_lib:/home/student/my_uf_ws/install/my_uf_demo:/home/student/my_uf_ws/install/my_uf_bringup:/home/student/ros2_industrial_ws/install/urdf_basics:/home/student/ros2_industrial_ws/install/transferframes:/home/student/ros2_industrial_ws/install/template_package_python:/home/student/ros2_industrial_ws/install/ros_industrial_utilities:/home/student/ros2_industrial_ws/install/ros_industrial_support:/home/student/ros2_industrial_ws/install/range_sensor:/home/student/ros2_industrial_ws/install/node_demo:/home/student/ros2_industrial_ws/install/manipulation:/home/student/ros2_industrial_ws/install/fanuc_robots:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --install /home/student/my_uf_ws/build/my_moveit_python

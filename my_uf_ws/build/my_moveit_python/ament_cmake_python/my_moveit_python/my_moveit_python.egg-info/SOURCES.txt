@@ -1,0 +1,7 @@
+setup.py
+my_moveit_python/__init__.py
+my_moveit_python/my_moveit_python.py
+my_moveit_python.egg-info/PKG-INFO
+my_moveit_python.egg-info/SOURCES.txt
+my_moveit_python.egg-info/dependency_links.txt
+my_moveit_python.egg-info/top_level.txt

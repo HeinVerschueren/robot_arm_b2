@@ -1,0 +1,9 @@
+/home/student/my_uf_ws/build/my_uf/CMakeFiles/uninstall.dir
+/home/student/my_uf_ws/build/my_uf/CMakeFiles/my_uf_uninstall.dir
+/home/student/my_uf_ws/build/my_uf/CMakeFiles/test.dir
+/home/student/my_uf_ws/build/my_uf/CMakeFiles/edit_cache.dir
+/home/student/my_uf_ws/build/my_uf/CMakeFiles/rebuild_cache.dir
+/home/student/my_uf_ws/build/my_uf/CMakeFiles/list_install_components.dir
+/home/student/my_uf_ws/build/my_uf/CMakeFiles/install.dir
+/home/student/my_uf_ws/build/my_uf/CMakeFiles/install/local.dir
+/home/student/my_uf_ws/build/my_uf/CMakeFiles/install/strip.dir

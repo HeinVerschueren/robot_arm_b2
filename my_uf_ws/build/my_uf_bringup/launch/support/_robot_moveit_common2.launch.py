@@ -1,0 +1,1 @@
+/home/student/my_uf_ws/src/my_ufactory_ROS2/my_uf_bringup/launch/support/_robot_moveit_common2.launch.py

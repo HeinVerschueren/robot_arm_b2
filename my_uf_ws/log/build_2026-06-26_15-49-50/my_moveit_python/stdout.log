@@ -1,0 +1,57 @@
+-- The C compiler identification is GNU 13.3.0
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found ament_cmake: 2.5.4 (/opt/ros/jazzy/share/ament_cmake/cmake)
+-- Found Python3: /usr/bin/python3 (found version "3.12.3") found components: Interpreter 
+-- Override CMake install command with custom implementation using symlinks instead of copying resources
+-- Configuring done (1.7s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/student/my_uf_ws/build/my_moveit_python
+Built target ament_cmake_python_symlink_my_moveit_python
+running egg_info
+creating my_moveit_python.egg-info
+writing my_moveit_python.egg-info/PKG-INFO
+writing dependency_links to my_moveit_python.egg-info/dependency_links.txt
+writing top-level names to my_moveit_python.egg-info/top_level.txt
+writing manifest file 'my_moveit_python.egg-info/SOURCES.txt'
+reading manifest file 'my_moveit_python.egg-info/SOURCES.txt'
+writing manifest file 'my_moveit_python.egg-info/SOURCES.txt'
+Built target ament_cmake_python_build_my_moveit_python_egg
+-- Install configuration: ""
+-- Execute custom install script
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/environment/pythonpath.sh
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/environment/pythonpath.dsv
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python-4.0.0-py3.12.egg-info/PKG-INFO
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python-4.0.0-py3.12.egg-info/SOURCES.txt
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python-4.0.0-py3.12.egg-info/dependency_links.txt
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python-4.0.0-py3.12.egg-info/top_level.txt
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python/.gitignore
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python/__init__.py
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python/my_moveit_python.py
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/ament_index/resource_index/package_run_dependencies/my_moveit_python
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/ament_index/resource_index/parent_prefix_path/my_moveit_python
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/environment/ament_prefix_path.sh
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/environment/ament_prefix_path.dsv
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/environment/path.sh
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/environment/path.dsv
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/local_setup.bash
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/local_setup.sh
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/local_setup.zsh
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/local_setup.dsv
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/package.dsv
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/ament_index/resource_index/packages/my_moveit_python
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/cmake/my_moveit_pythonConfig.cmake
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/cmake/my_moveit_pythonConfig-version.cmake
+-- Symlinking: /home/student/my_uf_ws/install/my_moveit_python/share/my_moveit_python/package.xml
+Listing '/home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python'...
+Compiling '/home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python/__init__.py'...
+Compiling '/home/student/my_uf_ws/install/my_moveit_python/lib/python3.12/site-packages/my_moveit_python/my_moveit_python.py'...

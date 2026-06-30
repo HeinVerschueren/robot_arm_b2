@@ -1,0 +1,15 @@
+/home/student/my_uf_ws/install/my_uf/share/ament_index/resource_index/package_run_dependencies/my_uf
+/home/student/my_uf_ws/install/my_uf/share/ament_index/resource_index/parent_prefix_path/my_uf
+/home/student/my_uf_ws/install/my_uf/share/my_uf/environment/ament_prefix_path.sh
+/home/student/my_uf_ws/install/my_uf/share/my_uf/environment/ament_prefix_path.dsv
+/home/student/my_uf_ws/install/my_uf/share/my_uf/environment/path.sh
+/home/student/my_uf_ws/install/my_uf/share/my_uf/environment/path.dsv
+/home/student/my_uf_ws/install/my_uf/share/my_uf/local_setup.bash
+/home/student/my_uf_ws/install/my_uf/share/my_uf/local_setup.sh
+/home/student/my_uf_ws/install/my_uf/share/my_uf/local_setup.zsh
+/home/student/my_uf_ws/install/my_uf/share/my_uf/local_setup.dsv
+/home/student/my_uf_ws/install/my_uf/share/my_uf/package.dsv
+/home/student/my_uf_ws/install/my_uf/share/ament_index/resource_index/packages/my_uf
+/home/student/my_uf_ws/install/my_uf/share/my_uf/cmake/my_ufConfig.cmake
+/home/student/my_uf_ws/install/my_uf/share/my_uf/cmake/my_ufConfig-version.cmake
+/home/student/my_uf_ws/install/my_uf/share/my_uf/package.xml

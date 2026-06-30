@@ -1,0 +1,13 @@
+package.xml
+setup.cfg
+setup.py
+my_uf_demo/__init__.py
+my_uf_demo/demo.py
+my_uf_demo.egg-info/PKG-INFO
+my_uf_demo.egg-info/SOURCES.txt
+my_uf_demo.egg-info/dependency_links.txt
+my_uf_demo.egg-info/entry_points.txt
+my_uf_demo.egg-info/requires.txt
+my_uf_demo.egg-info/top_level.txt
+my_uf_demo.egg-info/zip-safe
+resource/my_uf_demo

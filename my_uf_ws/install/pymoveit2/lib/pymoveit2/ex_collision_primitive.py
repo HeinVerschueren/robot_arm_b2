@@ -1,0 +1,1 @@
+/home/student/my_uf_ws/src/pymoveit2/examples/ex_collision_primitive.py

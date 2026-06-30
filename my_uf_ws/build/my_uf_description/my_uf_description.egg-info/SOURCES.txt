@@ -1,0 +1,13 @@
+package.xml
+setup.cfg
+setup.py
+cfg/view_robot.rviz
+launch/view_environment.launch.py
+my_uf_description.egg-info/PKG-INFO
+my_uf_description.egg-info/SOURCES.txt
+my_uf_description.egg-info/dependency_links.txt
+my_uf_description.egg-info/requires.txt
+my_uf_description.egg-info/top_level.txt
+my_uf_description.egg-info/zip-safe
+resource/my_uf_description
+urdf/uf_robot.urdf.xacro

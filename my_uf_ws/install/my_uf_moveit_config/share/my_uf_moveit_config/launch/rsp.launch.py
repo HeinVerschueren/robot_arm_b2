@@ -1,0 +1,1 @@
+/home/student/my_uf_ws/src/my_ufactory_ROS2/my_uf_moveit_config/launch/rsp.launch.py
