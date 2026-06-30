@@ -1,5 +1,5 @@
 import numpy as np
-from numpy import int32
+from std_msgs.msg import Int16
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
@@ -22,6 +22,7 @@ class HMI(Node):
         self.balk_tel = 0
         self.maan_tel = 0
         self.octagon_tel = 0
+        self.global_voice=None
 
         self.publisher_start_stop = self.create_publisher(
            Bool,    #bool for start and stop button
@@ -105,6 +106,13 @@ class HMI(Node):
             Int32MultiArray,
             '/teller',
             self.teller_callback,
+            10,
+        )
+
+        self.voice_command_sub = self.create_subscription(
+            Int16,
+            '/voice_command',
+            self.voice_call_back,
             10,
         )
 ######################## window with buttons and such  ###################
@@ -369,6 +377,7 @@ class HMI(Node):
     def voice_on(self):   #publish voice command
         msg=Bool()
         msg.data=self.checkbox_voice_on.get()
+        self.global_voice=msg.data
         self.publisher_voice_on.publish(msg)
 
     def snelheid_zendt(self):
@@ -459,6 +468,27 @@ class HMI(Node):
         elif gripper==False:
             self.Grijper_close()
 
+    def voice_call_back(self, msg):
+        voice_command = msg.data
+
+        if self.global_voice == True:#voic commando's
+            if voice_command == 0:
+                self.start()
+            if voice_command == 1:
+                self.stop()
+
+            if self.keuze_active == True:  #als de service product keuze actief is
+                if voice_command == 2:
+                    self.root.after(0, lambda: self.keuze_gemaakt("kubus"))
+                elif voice_command == 3:
+                    self.root.after(0, lambda: self.keuze_gemaakt("balk"))
+                elif voice_command == 4:
+                    self.root.after(0, lambda: self.keuze_gemaakt("maan"))
+                elif voice_command == 5:
+                    self.root.after(0, lambda: self.keuze_gemaakt("octagon"))
+
+
+
     def robot_status_callback(self, msg):
         status=msg.data
         if status=="stand-by":
@@ -470,7 +500,7 @@ class HMI(Node):
         elif status=="error":
             self.robot_error()
 
-    def teller_callback(self, msg):
+    def teller_callback(self, msg):  #waardes voor tabel
         self.kubus_tel=msg.data[0]
         self.balk_tel=msg.data[1]
         self.maan_tel=msg.data[2]
