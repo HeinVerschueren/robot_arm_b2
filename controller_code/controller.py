@@ -7,6 +7,19 @@ ROS_SITE_PACKAGES = WORKSPACE_ROOT / 'install' / 'frs_interfaces' / 'lib' / f'py
 if ROS_SITE_PACKAGES.exists() and str(ROS_SITE_PACKAGES) not in sys.path:
     sys.path.insert(0, str(ROS_SITE_PACKAGES))
 
+ROS_INTERFACE_LIB_DIR = WORKSPACE_ROOT / 'install' / 'frs_interfaces' / 'lib'
+if ROS_INTERFACE_LIB_DIR.exists():
+    library_path = str(ROS_INTERFACE_LIB_DIR)
+    existing_ld_library_path = os.environ.get('LD_LIBRARY_PATH', '')
+    paths = [p for p in existing_ld_library_path.split(':') if p]
+    if library_path not in paths:
+        os.environ['LD_LIBRARY_PATH'] = ':'.join(paths + [library_path]) if paths else library_path
+
+    existing_pythonpath = os.environ.get('PYTHONPATH', '')
+    python_paths = [p for p in existing_pythonpath.split(':') if p]
+    if str(ROS_SITE_PACKAGES) not in python_paths:
+        os.environ['PYTHONPATH'] = ':'.join(python_paths + [str(ROS_SITE_PACKAGES)]) if python_paths else str(ROS_SITE_PACKAGES)
+
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String

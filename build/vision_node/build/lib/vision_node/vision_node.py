@@ -1,27 +1,49 @@
 #!/usr/bin/env python3
-"""
-vision_node.py  –  Fast Robotic Solutions | projectgroep B2
-Verantwoordelijke: Rens Peeters
+#vision_node.py Fast Robotic Solutions 
+#projectgroep B2
+#Ontwerper:Rens Peeters
+#Detecteer objecten (Balk, Kubus, Maan, Octagon) via een
+#OAK-D camera en YOLOv8, en publiceert hun positie (x, y, z in mm) en
+#rotatie via ROS2-topics.
+import os
+import sys
+from pathlib import Path
 
-Detecteert 3D-geprinte objecten (Balk, Kubus, Maan, Octagon) via een
-OAK-D camera en YOLOv8, en publiceert hun positie (x, y, z in mm) en
-rotatie via ROS2-topics.
+#Bepaal workspace-root (3 mappen omhoog vanaf dit bestand)
+WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
+#Pad naar gegenereerde Python-bindings van frs_interfaces
+ROS_SITE_PACKAGES = WORKSPACE_ROOT / 'install' / 'frs_interfaces' / 'lib' / f'python{sys.version_info.major}.{sys.version_info.minor}' / 'site-packages'
+#Voeg toe aan sys.path zodat frs_interfaces importeerbaar is
+if ROS_SITE_PACKAGES.exists() and str(ROS_SITE_PACKAGES) not in sys.path:
+    sys.path.insert(0, str(ROS_SITE_PACKAGES))
 
-Coördinatenoorsprong: ArUco-marker (ID 0, 48 mm).
-  x+ = rechts, x- = links, y+ = boven, y- = onder marker.
-  z   = vaste hoogte per klasse (alle objecten = 10 mm).
-"""
+#Pad naar gecompileerde interface-libraries
+ROS_INTERFACE_LIB_DIR = WORKSPACE_ROOT / 'install' / 'frs_interfaces' / 'lib'
+if ROS_INTERFACE_LIB_DIR.exists():
+    #LD_LIBRARY_PATH aanvullen zodat .so-bestanden gevonden worden
+    library_path = str(ROS_INTERFACE_LIB_DIR)
+    existing_ld_library_path = os.environ.get('LD_LIBRARY_PATH', '')
+    paths = [p for p in existing_ld_library_path.split(':') if p]
+    if library_path not in paths:
+        os.environ['LD_LIBRARY_PATH'] = ':'.join(paths + [library_path]) if paths else library_path
 
+    #PYTHONPATH aanvullen zodat frs_interfaces ook in subprocessen werkt
+    existing_pythonpath = os.environ.get('PYTHONPATH', '')
+    python_paths = [p for p in existing_pythonpath.split(':') if p]
+    if str(ROS_SITE_PACKAGES) not in python_paths:
+        os.environ['PYTHONPATH'] = ':'.join(python_paths + [str(ROS_SITE_PACKAGES)]) if python_paths else str(ROS_SITE_PACKAGES)
+
+#ROS2-imports
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import Bool, Float32
 from frs_interfaces.msg import DetectieResultaat
 
+#Camera, beeldverwerking en algemene libraries
 import cv2
 import depthai as dai
 import numpy as np
-import os
 import threading
 import time
 import collections
@@ -31,14 +53,13 @@ from datetime import timedelta
 # CONFIGURATIE
 # =============================================================================
 
-# Pad naar het YOLOv8-gewichtenbestand
+#Pad naar het YOLOv8-gewichtenbestand
 MODEL_PATH = os.path.join(os.path.dirname(__file__), 'model', 'best.pt')
 
-# Klassenamen — volgorde moet overeenkomen met het getrainde model
+#Klassenamen — volgorde moet overeenkomen met het getrainde model
 LABELS = ['Balk', 'Kubus', 'Maan', 'Octagon']
 
-# Vaste z-hoogte per klasse in mm.
-# Alle objecten liggen plat op tafel → altijd 10 mm.
+#Vaste z-hoogte per klasse in mm (alle objecten liggen plat op tafel)
 Z_PER_KLASSE = {
     'Maan':    10.0,
     'Octagon': 10.0,
@@ -46,41 +67,37 @@ Z_PER_KLASSE = {
     'Kubus':   10.0,
 }
 
-# Aspect-ratio drempels voor liggend/staand (alleen gebruikt voor centroid-correctie Maan)
-STAAND_ASPECT_DREMPEL = 0.88  # voor Balk / Octagon
-MAAN_ASPECT_DREMPEL   = 0.6   # voor Maan
-
-# Aantal frames voor mediaan-smoothing van de centroidpositie
+#Aantal frames voor mediaan-smoothing van de centroidpositie
 CENTROID_SMOOTH_FRAMES = 5
 
-# ArUco-markerinstellingen
-ARUCO_DICT          = cv2.aruco.DICT_4X4_50  # markerwoordenboek
-ARUCO_MARKER_ID     = 0                       # te gebruiken marker-ID
-ARUCO_MARKER_SIZE_M = 0.048                   # fysieke markergrootte in meter
-CALIBRATION_FRAMES  = 20                      # frames voor mediaan-kalibratie
+#ArUco-markerinstellingen
+ARUCO_DICT          = cv2.aruco.DICT_4X4_50  #markerwoordenboek
+ARUCO_MARKER_ID     = 0                       #te gebruiken marker-ID
+ARUCO_MARKER_SIZE_M = 0.048                   #fysieke markergrootte in meter
+CALIBRATION_FRAMES  = 20                      #frames voor mediaan-kalibratie
 
-# YOLO-inferentie instellingen
-YOLO_CONF_THRESHOLD = 0.85      # lage drempel voor testen; productie = 0.85
-YOLO_IOU_THRESHOLD  = 0.4       # IoU-drempel voor non-maximum suppression
-YOLO_INPUT_SIZE     = (640, 640)  # invoergrootte van het model
+#YOLO-inferentie instellingen
+YOLO_CONF_THRESHOLD = 0.85      #lage drempel voor testen; productie = 0.85
+YOLO_IOU_THRESHOLD  = 0.4       #IoU-drempel voor non-maximum suppression
+YOLO_INPUT_SIZE     = (640, 640)  #invoergrootte van het model
 
-# Camera- en publicatieresolutie
-RGB_WIDTH      = 1920  # capture breedte
-RGB_HEIGHT     = 1080  # capture hoogte
-PUBLISH_WIDTH  = 960   # publiceer breedte (gehalveerd voor bandbreedte)
-PUBLISH_HEIGHT = 540   # publiceer hoogte
+#Camera- en publicatieresolutie
+RGB_WIDTH      = 1920  #capture breedte
+RGB_HEIGHT     = 1080  #capture hoogte
+PUBLISH_WIDTH  = 960   #publiceer breedte (gehalveerd voor bandbreedte)
+PUBLISH_HEIGHT = 540   #publiceer hoogte
 
-# Grootte van het werkgebied rondom de ArUco-marker (vierkant in mm)
-WORKSPACE_SIZE_MM = 700.0
+#Grootte van het werkgebied rondom de ArUco-marker (vierkant in mm)
+WORKSPACE_SIZE_MM = 500.0
 
-# Aantal frames dat een detectie zichtbaar blijft na het verdwijnen van een object
+#Aantal frames dat een detectie zichtbaar blijft na het verdwijnen van een object
 PERSIST_FRAMES = 5
 
-# Venstergrootte voor labelstabilisatie via meerderheidstemming
+#Venstergrootte voor labelstabilisatie via meerderheidstemming
 LABEL_HISTORY = 10
 
-# Correctiefactor voor zwaartepunt halve schijf (Maan staand).
-# Geometrisch zwaartepunt halve schijf = 4r/3π van middelpunt → factor = 2/(3π)
+#Correctiefactor voor zwaartepunt halve schijf (Maan).
+#Geometrisch zwaartepunt halve schijf = 4r/3π vanaf middelpunt → factor = 2/(3π)
 MAAN_CM_FACTOR = 2.0 / (3.0 * np.pi)  # ≈ 0.2122
 
 # =============================================================================
@@ -104,55 +121,55 @@ class VisionNode(Node):
     def __init__(self):
         super().__init__('vision_node')
 
-        # Publishers
+        #Publishers
         self.pub_camera        = self.create_publisher(Image,             'camera_beelden',      10)
         self.pub_detectie      = self.create_publisher(DetectieResultaat, 'detectie_resultaten', 10)
         self.pub_afgesloten    = self.create_publisher(Bool,              'afgesloten',          10)
         self.pub_vision_gereed = self.create_publisher(Bool,              'vision_gereed',       10)
 
-        # Subscribers
+        #Subscribers
         self.create_subscription(Bool,    'shut_down',          self._cb_afsluiten,  10)
         self.create_subscription(Float32, 'confidence_drempel', self._cb_confidence, 10)
 
-        self._afsluiten      = False               # True → pipeline stopt
-        self._conf_threshold = YOLO_CONF_THRESHOLD  # aanpasbaar via topic
+        self._afsluiten      = False               #True → pipeline stopt
+        self._conf_threshold = YOLO_CONF_THRESHOLD  #aanpasbaar via topic
 
-        # ArUco-detector initialiseren
+        #ArUco-detector initialiseren
         aruco_dict          = cv2.aruco.getPredefinedDictionary(ARUCO_DICT)
         aruco_params        = cv2.aruco.DetectorParameters()
         self.aruco_detector = cv2.aruco.ArucoDetector(aruco_dict, aruco_params)
 
-        # 3D-hoekpunten van de marker in markercoördinaten (vlak, z=0)
+        #3D-hoekpunten van de marker in markercoördinaten (vlak, z=0)
         half = ARUCO_MARKER_SIZE_M / 2.0
         self.marker_obj_pts = np.array([
             [-half,  half, 0], [ half,  half, 0],
             [ half, -half, 0], [-half, -half, 0]
         ], dtype=np.float64)
 
-        # Cameraparameters en kalibratiestatus
-        self.camera_matrix    = None   # intrinsieke matrix uit DepthAI
-        self.marker_rvec      = None   # rotatie-vector marker (mediaan)
-        self.marker_tvec      = None   # translatie-vector marker (mediaan)
-        self.marker_center_px = None   # pixelmiddelpunt marker (mediaan)
-        self.marker_size_px   = None   # markergrootte in pixels (mediaan)
-        self.marker_locked    = False  # True zodra kalibratie klaar is
+        #Cameraparameters en kalibratiestatus
+        self.camera_matrix    = None   #intrinsieke matrix uit DepthAI
+        self.marker_rvec      = None   #rotatie-vector marker (mediaan)
+        self.marker_tvec      = None   #translatie-vector marker (mediaan)
+        self.marker_center_px = None   #pixelmiddelpunt marker (mediaan)
+        self.marker_size_px   = None   #markergrootte in pixels (mediaan)
+        self.marker_locked    = False  #True zodra kalibratie klaar is
 
-        # Kalibratiebuffers (mediaan over CALIBRATION_FRAMES metingen)
+        #Kalibratiebuffers (mediaan over CALIBRATION_FRAMES metingen)
         self._cal_tvec   = collections.deque(maxlen=CALIBRATION_FRAMES)
         self._cal_rvec   = collections.deque(maxlen=CALIBRATION_FRAMES)
         self._cal_center = collections.deque(maxlen=CALIBRATION_FRAMES)
         self._cal_size   = collections.deque(maxlen=CALIBRATION_FRAMES)
 
-        # Histories voor temporele stabilisatie per positiesleutel (80×80 px grid)
+        #Histories voor temporele stabilisatie per positiesleutel (80×80 px grid)
         self._label_history    = collections.defaultdict(
             lambda: collections.deque(maxlen=LABEL_HISTORY))
         self._centroid_history = collections.defaultdict(
             lambda: collections.deque(maxlen=CENTROID_SMOOTH_FRAMES))
 
-        # Persistente detecties: blijven PERSIST_FRAMES frames zichtbaar
+        #Persistente detecties: blijven PERSIST_FRAMES frames zichtbaar
         self._persistent_detections = {}
 
-        # YOLOv8-model laden
+        #YOLOv8-model laden
         self.model = None
         if os.path.exists(MODEL_PATH):
             from ultralytics import YOLO
@@ -161,7 +178,7 @@ class VisionNode(Node):
         else:
             self.get_logger().warn('Geen model gevonden — alleen camera_beelden wordt gepubliceerd.')
 
-        # Pipeline in aparte thread (blocking camera-loop)
+        #Pipeline in aparte thread (blocking camera-loop)
         threading.Thread(target=self._run_pipeline, daemon=True).start()
         self.get_logger().info('vision_node gestart.')
 
@@ -192,10 +209,12 @@ class VisionNode(Node):
           1. CLAHE op L-kanaal in LAB-kleurruimte (adaptief contrast)
           2. Scherptefilter (unsharp-mask kernel)
         """
+        #Naar LAB-kleurruimte en contrast verbeteren op het L-kanaal
         lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
         l, a, b = cv2.split(lab)
         l = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(l)
         frame = cv2.cvtColor(cv2.merge([l, a, b]), cv2.COLOR_LAB2BGR)
+        #Scherptefilter toepassen
         kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
         return cv2.filter2D(frame, -1, kernel)
 
@@ -209,12 +228,13 @@ class VisionNode(Node):
         if self.camera_matrix is None:
             return
 
-        # Na vergrendeling geen herberekening
+        #Na vergrendeling geen herberekening meer nodig
         if self.marker_locked:
             cv2.putText(frame, 'Marker vergrendeld',
                         (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
             return
 
+        #Marker zoeken in grijswaardenbeeld
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         corners, ids, _ = self.aruco_detector.detectMarkers(gray)
 
@@ -228,12 +248,14 @@ class VisionNode(Node):
             if marker_id != ARUCO_MARKER_ID:
                 continue
 
+            #Pose van marker berekenen t.o.v. camera
             img_pts = corners[i][0].astype(np.float64)
             ok, rvec, tvec = cv2.solvePnP(
                 self.marker_obj_pts, img_pts, self.camera_matrix, np.zeros((5, 1)))
             if not ok:
                 continue
 
+            #Meting toevoegen aan kalibratiebuffers
             self._cal_tvec.append(tvec.flatten())
             self._cal_rvec.append(rvec.flatten())
             self._cal_center.append(img_pts.mean(axis=0))
@@ -245,7 +267,7 @@ class VisionNode(Node):
                         (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 165, 255), 2)
 
             if n >= CALIBRATION_FRAMES:
-                # Mediaan-waarden berekenen voor robuuste kalibratie
+                #Mediaan-waarden berekenen voor robuuste kalibratie
                 self.marker_tvec      = np.median(self._cal_tvec, axis=0).reshape(3, 1)
                 self.marker_rvec      = np.median(self._cal_rvec, axis=0).reshape(3, 1)
                 self.marker_center_px = np.median(self._cal_center, axis=0)
@@ -254,7 +276,7 @@ class VisionNode(Node):
                 self.get_logger().info(
                     f'Marker vergrendeld. tvec={self.marker_tvec.flatten().round(4)}')
 
-                # Signaleer dat detectie kan beginnen
+                #Signaleer dat detectie kan beginnen
                 msg_gereed = Bool()
                 msg_gereed.data = True
                 self.pub_vision_gereed.publish(msg_gereed)
@@ -274,7 +296,7 @@ class VisionNode(Node):
         dx_px = x_px - self.marker_center_px[0]
         dy_px = y_px - self.marker_center_px[1]
         x_mm  =  dx_px / px_per_mm
-        y_mm  = -dy_px / px_per_mm  # omgekeerd: pixel-y daalt, wereld-y stijgt
+        y_mm  = -dy_px / px_per_mm  #omgekeerd: pixel-y daalt, wereld-y stijgt
         return x_mm, y_mm
 
     # ------------------------------------------------------------------
@@ -283,6 +305,7 @@ class VisionNode(Node):
         Extraheert het grootste contour in de bounding-box (met marge).
         Gebruikt Otsu-thresholding. Geeft (None, cx0, cy0) bij mislukken.
         """
+        #ROI bepalen met marge, binnen framegrenzen
         h, w = frame.shape[:2]
         cx0 = max(0, x1 - margin); cy0 = max(0, y1 - margin)
         cx1 = min(w, x2 + margin); cy1 = min(h, y2 + margin)
@@ -290,6 +313,7 @@ class VisionNode(Node):
         if roi.size == 0:
             return None, cx0, cy0
 
+        #Otsu-thresholding en grootste contour zoeken
         gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
         _, mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -297,7 +321,7 @@ class VisionNode(Node):
             return None, cx0, cy0
 
         largest = max(contours, key=cv2.contourArea)
-        if cv2.contourArea(largest) < 20:  # te klein → ruis
+        if cv2.contourArea(largest) < 20:  #te klein → ruis
             return None, cx0, cy0
 
         return largest, cx0, cy0
@@ -322,6 +346,7 @@ class VisionNode(Node):
                     max(0, x1-margin):min(w, x2+margin)]
         if roi.size == 0:
             return 0.0
+        #Otsu-thresholding en grootste contour zoeken
         gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
         _, mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -330,21 +355,34 @@ class VisionNode(Node):
         largest = max(contours, key=cv2.contourArea)
         if cv2.contourArea(largest) < 20:
             return 0.0
+        #Hoek van kleinste omsluitende rechthoek
         _, _, angle = cv2.minAreaRect(largest)
         if angle < -45:
-            angle += 90.0  # corrigeer naar leesbaar bereik
+            angle += 90.0  #corrigeer naar leesbaar bereik
         return round(angle, 1)
 
     # ------------------------------------------------------------------
     def _get_centroid(self, frame, x1, y1, x2, y2, label='', margin=4):
         """
-        Berekent het nauwkeurige zwaartepunt van het object via cv2.moments.
+        Bepaalt het grijppunt (pixelpositie) waar de gripper het object oppakt.
 
-        Speciale behandeling Maan (staand):
-          Halve schijf → geometrisch zwaartepunt ligt niet in het bbox-centrum.
-          Correctie: verschuif van rechthoekcentrum richting gebogen kant
-          over (0.5 - 4/(3π)) × diameter pixels.
+        Voor de meeste objecten (Balk, Octagon, Kubus) is het zwaartepunt van
+        de vorm een goed en betrouwbaar grijppunt, want deze vormen zijn
+        symmetrisch/gevuld. Daarvoor gebruiken we cv2.moments: een standaard
+        OpenCV-berekening die het geometrische zwaartepunt van een contour geeft.
+
+        De Maan is een halve-maanvorm (benaderd als halve schijf). Het
+        zwaartepunt van zo'n vorm ligt wiskundig altijd op een vaste afstand
+        van 4r/(3π) vanaf het middelpunt van de rechte zijde, richting de
+        gebogen kant — een bekende formule uit de werktuigbouwkunde voor het
+        zwaartepunt van een halve cirkel. We gebruiken hiervoor de afmetingen
+        van de kleinste omsluitende rechthoek (minAreaRect), wat veel minder
+        gevoelig is voor kleine onnauwkeurigheden in de contourdetectie dan
+        een berekening die op losse pixels werkt (zoals moments). Hierdoor
+        geeft deze methode een consistent grijppunt midden in de Maan, ook
+        bij wisselende rotatie of belichting.
         """
+        #Fallback-waarde: midden van de bounding box (als er geen contour gevonden wordt)
         bbox_cx = (x1 + x2) // 2
         bbox_cy = (y1 + y2) // 2
 
@@ -352,58 +390,41 @@ class VisionNode(Node):
         if contour is None:
             return bbox_cx, bbox_cy
 
-        _, (rw, rh), _ = cv2.minAreaRect(contour)
-        rect_ratio = min(rw, rh) / max(rw, rh) if max(rw, rh) > 0 else 1.0
-        drempel    = MAAN_ASPECT_DREMPEL if label == 'Maan' else STAAND_ASPECT_DREMPEL
-        is_staand  = rect_ratio < drempel
-
-        if label == 'Maan' and is_staand:
-            # Centroid-correctie voor staande Maan (halve schijf)
+        if label == 'Maan':
+            #Kleinste omsluitende rechthoek: geeft middelpunt en afmetingen van de vorm
             rect = cv2.minAreaRect(contour)
-            (rect_cx, rect_cy), (rw2, rh2), _ = rect
-
-            diameter  = min(rw2, rh2)
-            offset_px = (0.5 - MAAN_CM_FACTOR) * diameter  # verschuiving in pixels
-
+            (rect_cx, rect_cy), (rw, rh), _ = rect
             rect_cx_frame = cx0 + rect_cx
             rect_cy_frame = cy0 + rect_cy
 
-            # Richting: van rechthoekcentrum naar contourzwaartepunt
+            #Diameter van de halve schijf = korte zijde van de rechthoek
+            diameter = min(rw, rh)
+            #Analytische verschuiving van rechthoekcentrum naar werkelijk zwaartepunt
+            offset_px = (0.5 - MAAN_CM_FACTOR) * diameter
+
+            #Richting bepalen: van rechthoekcentrum naar het ruwe contourzwaartepunt
+            #(alleen de richting wordt gebruikt, niet de exacte positie — dus
+            # ongevoelig voor kleine contourruis)
             M = cv2.moments(contour)
             if M['m00'] > 0:
                 cont_cx = cx0 + M['m10'] / M['m00']
                 cont_cy = cy0 + M['m01'] / M['m00']
-                dx   = cont_cx - rect_cx_frame
-                dy   = cont_cy - rect_cy_frame
+                dx, dy = cont_cx - rect_cx_frame, cont_cy - rect_cy_frame
                 dist = np.sqrt(dx**2 + dy**2)
             else:
                 dist = 0.0
 
             if dist > 1.0:
-                nx = dx / dist
-                ny = dy / dist
+                nx, ny = dx / dist, dy / dist
             else:
-                # Fallback: richting van markercentrum naar bbox-centrum
-                dx2 = rect_cx_frame - bbox_cx
-                dy2 = rect_cy_frame - bbox_cy
-                dist2 = np.sqrt(dx2**2 + dy2**2)
-                if dist2 > 1.0:
-                    nx = dx2 / dist2
-                    ny = dy2 / dist2
-                else:
-                    return bbox_cx, bbox_cy
+                #Geen duidelijke richting gevonden: gebruik rechthoekcentrum
+                return int(round(rect_cx_frame)), int(round(rect_cy_frame))
 
-            final_cx = int(round(rect_cx_frame + nx * offset_px))
-            final_cy = int(round(rect_cy_frame + ny * offset_px))
+            grijp_x = int(round(rect_cx_frame + nx * offset_px))
+            grijp_y = int(round(rect_cy_frame + ny * offset_px))
+            return grijp_x, grijp_y
 
-            self.get_logger().info(
-                f"MAAN DEBUG: rect_c=({rect_cx_frame:.0f},{rect_cy_frame:.0f}) "
-                f"dist={dist:.1f} offset={offset_px:.1f}px "
-                f"richting=({nx:.2f},{ny:.2f}) final=({final_cx},{final_cy})")
-
-            return final_cx, final_cy
-
-        # Standaard: moments-zwaartepunt
+        #Standaard: geometrisch zwaartepunt via image moments
         M = cv2.moments(contour)
         if M['m00'] == 0:
             return bbox_cx, bbox_cy
@@ -439,6 +460,7 @@ class VisionNode(Node):
         cw, ch  = cropped.shape[1], cropped.shape[0]
         if cw == 0 or ch == 0:
             return None, (0, 0, 1.0, 1.0)
+        #Schalen naar vaste YOLO-invoergrootte
         resized = cv2.resize(cropped, YOLO_INPUT_SIZE)
         scale_x = cw / YOLO_INPUT_SIZE[0]
         scale_y = ch / YOLO_INPUT_SIZE[1]
@@ -467,7 +489,7 @@ class VisionNode(Node):
           8. Frame publiceren (960×540)
         """
         with dai.Pipeline() as pipeline:
-            # Camera-intrinsics ophalen uit DepthAI-kalibratie
+            #Camera-intrinsics ophalen uit DepthAI-kalibratie
             device = pipeline.getDefaultDevice()
             calib  = device.readCalibration()
             self.camera_matrix = np.array(
@@ -476,7 +498,7 @@ class VisionNode(Node):
             self.get_logger().info(
                 f'Intrinsics: fx={self.camera_matrix[0,0]:.1f} fy={self.camera_matrix[1,1]:.1f}')
 
-            # RGB-camera met handmatige focus (~280 mm werkafstand)
+            #RGB-camera met handmatige focus (~280 mm werkafstand)
             cam = pipeline.create(dai.node.Camera).build()
             cam.initialControl.setManualFocus(130)
             queue_rgb = cam.requestOutput(
@@ -490,12 +512,14 @@ class VisionNode(Node):
 
             while pipeline.isRunning() and rclpy.ok():
 
+                #Stoppen indien afsluitverzoek ontvangen
                 if self._afsluiten:
                     self.get_logger().info('Vision node afgesloten.')
                     msg = Bool(); msg.data = True
                     self.pub_afgesloten.publish(msg)
                     break
 
+                #Frame ophalen
                 rgb_data = queue_rgb.get(timeout)
                 if rgb_data is None:
                     self.get_logger().warn('Geen RGB-frame binnen timeout.')
@@ -504,7 +528,7 @@ class VisionNode(Node):
                 frame = self._enhance(rgb_data.getCvFrame())
                 self._detect_aruco(frame)
 
-                # Persistente detecties ouder maken; verlopen detecties verwijderen
+                #Persistente detecties ouder maken; verlopen detecties verwijderen
                 for key in list(self._persistent_detections):
                     self._persistent_detections[key]['frames_since_seen'] += 1
                     if self._persistent_detections[key]['frames_since_seen'] > PERSIST_FRAMES:
@@ -514,6 +538,7 @@ class VisionNode(Node):
                 crop_x0, crop_y0, crop_x1, crop_y1 = self._get_crop(w, h)
 
                 if self.model is not None and self.marker_locked:
+                    #YOLO-inferentie op uitgesneden werkgebied
                     results, crop_info = self._run_yolo(frame)
                     ci_x0, ci_y0, sx, sy = crop_info
                     lim_x1 = int(ci_x0 + YOLO_INPUT_SIZE[0] * sx)
@@ -526,7 +551,7 @@ class VisionNode(Node):
                                 label      = LABELS[cls_int] if cls_int < len(LABELS) else 'onbekend'
                                 confidence = float(box.conf[0])
 
-                                # Bounding-box terugrekenen naar framecoördinaten
+                                #Bounding-box terugrekenen naar framecoördinaten
                                 cx1, cy1, cx2, cy2 = map(int, box.xyxy[0].tolist())
                                 x1, y1, x2, y2 = self._crop_to_frame(
                                     cx1, cy1, cx2, cy2, crop_info)
@@ -534,42 +559,42 @@ class VisionNode(Node):
                                 bbox_cx = (x1 + x2) // 2
                                 bbox_cy = (y1 + y2) // 2
 
-                                # Objecten buiten werkgebied overslaan
+                                #Objecten buiten werkgebied overslaan
                                 if not (ci_x0 <= bbox_cx <= lim_x1 and
                                         ci_y0 <= bbox_cy <= lim_y1):
                                     continue
 
-                                # Nauwkeurig zwaartepunt (Maan heeft correctie)
+                                #Nauwkeurig zwaartepunt (Maan: pi-formule halve schijf, overig: moments)
                                 x_px_raw, y_px_raw = self._get_centroid(
                                     frame, x1, y1, x2, y2, label=label)
 
                                 rot_deg = self._get_rotation(frame, x1, y1, x2, y2)
 
-                                # Vaste z-hoogte per klasse (altijd 10 mm)
+                                #Vaste z-hoogte per klasse (altijd 10 mm)
                                 z_mm = self._bepaal_z(label)
 
-                                # Positiesleutel op 80×80 px grid voor stabilisatie
+                                #Positiesleutel op 80×80 px grid voor stabilisatie
                                 pos_key = (x_px_raw // 80, y_px_raw // 80)
 
-                                # Labelstabilisatie: meest voorkomend label in history
+                                #Labelstabilisatie: meest voorkomend label in history
                                 self._label_history[pos_key].append(label)
                                 stable_label = max(
                                     set(self._label_history[pos_key]),
                                     key=list(self._label_history[pos_key]).count)
 
-                                # Centroid-smoothing via mediaan over meerdere frames
+                                #Centroid-smoothing via mediaan over meerdere frames
                                 self._centroid_history[pos_key].append((x_px_raw, y_px_raw))
                                 xs   = [p[0] for p in self._centroid_history[pos_key]]
                                 ys   = [p[1] for p in self._centroid_history[pos_key]]
                                 x_px = int(np.median(xs))
                                 y_px = int(np.median(ys))
 
-                                # Pixel → mm t.o.v. ArUco-marker
+                                #Pixel → mm t.o.v. ArUco-marker
                                 x_mm, y_mm = self._pixel_to_world_mm(x_px, y_px)
                                 if x_mm is None:
                                     continue
 
-                                # Sla op als persistente detectie
+                                #Sla op als persistente detectie
                                 self._persistent_detections[pos_key] = {
                                     'label':             stable_label,
                                     'confidence':        confidence,
@@ -580,18 +605,18 @@ class VisionNode(Node):
                                     'frames_since_seen': 0,
                                 }
 
-                    # Werkgebied-rechthoek (blauw)
+                    #Werkgebied-rechthoek (blauw)
                     cv2.rectangle(frame, (crop_x0, crop_y0), (crop_x1, crop_y1),
                                   (255, 0, 0), 2)
 
-                    # Publiceer alle actieve detecties
+                    #Publiceer alle actieve detecties
                     for det in self._persistent_detections.values():
                         msg = DetectieResultaat()
                         msg.klasse     = det['label']
                         msg.confidence = float(round(det['confidence'], 3))
                         msg.x          = float(round(det['x_mm'], 1))
                         msg.y          = float(round(det['y_mm'], 1))
-                        msg.z          = float(round(det['z_mm'], 1))  # altijd 10.0
+                        msg.z          = float(round(det['z_mm'], 1))  #altijd 10.0
                         msg.rotatie    = float(det['rotatie_deg'])
                         self.pub_detectie.publish(msg)
 
@@ -600,8 +625,9 @@ class VisionNode(Node):
                             f"x={det['x_mm']:.0f}mm y={det['y_mm']:.0f}mm "
                             f"z={det['z_mm']:.0f}mm | rot={det['rotatie_deg']}deg")
 
+                        #Visualisatie op het beeld
                         x1, y1, x2, y2 = det['x1'], det['y1'], det['x2'], det['y2']
-                        # Groen = actief gedetecteerd, cyaan = persistent (ouder)
+                        #Groen = actief gedetecteerd, cyaan = persistent (ouder)
                         kleur = (0, 255, 0) if det['frames_since_seen'] == 0 else (0, 200, 200)
                         cv2.rectangle(frame, (x1, y1), (x2, y2), kleur, 3)
                         cv2.circle(frame, (det['x_px'], det['y_px']), 6, (0, 0, 255), -1)
@@ -617,7 +643,7 @@ class VisionNode(Node):
                     cv2.putText(frame, 'Wacht op marker kalibratie...',
                                 (10, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 165, 255), 2)
 
-                # Frame publiceren (verkleind naar 960×540)
+                #Frame publiceren (verkleind naar 960×540)
                 pub_frame            = cv2.resize(frame, (PUBLISH_WIDTH, PUBLISH_HEIGHT))
                 msg_img              = Image()
                 msg_img.header.stamp = self.get_clock().now().to_msg()
@@ -630,12 +656,13 @@ class VisionNode(Node):
 
                 cv2.imshow('vision_node', pub_frame)
                 cv2.waitKey(1)
-                time.sleep(0.8)  # pauze voor USB-bandbreedte stabiliteit
+                time.sleep(0.8)  #pauze voor USB-bandbreedte stabiliteit
 
         cv2.destroyAllWindows()
 
 
 def main(args=None):
+    #ROS2 initialiseren en node starten
     rclpy.init(args=args)
     node = VisionNode()
     try:
@@ -643,6 +670,7 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
+        #Netjes afsluiten
         node.destroy_node()
         rclpy.shutdown()
 
