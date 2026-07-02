@@ -56,10 +56,10 @@ from datetime import timedelta
 #Pad naar het YOLOv8-gewichtenbestand
 MODEL_PATH = os.path.join(os.path.dirname(__file__), 'model', 'best.pt')
 
-#Klassenamen — volgorde moet overeenkomen met het getrainde model
+#Klassenamen 
 LABELS = ['Balk', 'Kubus', 'Maan', 'Octagon']
 
-#Vaste z-hoogte per klasse in mm (alle objecten liggen plat op tafel)
+#Vaste z-hoogte per klasse in mm
 Z_PER_KLASSE = {
     'Maan':    10.0,
     'Octagon': 10.0,
@@ -97,7 +97,7 @@ LABEL_HISTORY = 10
 
 #Correctiefactor voor zwaartepunt Maan.
 #Geometrisch zwaartepunt halve schijf = 4r/3π vanaf middelpunt → factor = 2/(3π)
-MAAN_CM_FACTOR = 2.0 / (3.0 * np.pi)  # ≈ 0.2122
+MAAN_CM_FACTOR = 2.0 / (3.0 * np.pi)  
 
 # =============================================================================
 

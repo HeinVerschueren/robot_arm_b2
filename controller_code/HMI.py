@@ -82,7 +82,7 @@ class HMI(Node):
 
         self.camera_subscriber = self.create_subscription(
            RosImage,
-           '/camera_image_raw',
+           'camera_beelden',
             self.Image_callback,
            10,
         )
@@ -520,9 +520,9 @@ class HMI(Node):
         if self.latest_frame is None:
             return
 
-            image = Image.fromarray(self.latest_frame)###<---- code voor op echte camera
+        image_1 = Image.fromarray(self.latest_frame)
 
-        if isinstance(image_1, Image.Image):  
+        if isinstance(image_1, Image.Image):
             image_1 = cv2.cvtColor(np.array(image_1), cv2.COLOR_RGB2BGR)
 
         if not isinstance(image_1, np.ndarray):
@@ -539,8 +539,6 @@ class HMI(Node):
         photo = ImageTk.PhotoImage(image_pil)
         self.camera_label.config(image=photo)
         self.camera_label.image = photo
-
-        
 
 
 def main():

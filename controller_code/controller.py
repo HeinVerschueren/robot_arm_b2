@@ -56,6 +56,7 @@ class Controller(Node):
         self.cam_ready=False
         self.robot_ready=False
         self.cam_afgesloten=False
+        self.product_draai=0
 ##################### publishers ########################
         self.HMI_camera_publisher = self.create_publisher(
             Image,    #type bericht sturen
@@ -488,20 +489,24 @@ class Controller(Node):
     #Publiceert de bak-locatie op basis van het label.
         if label == "Kubus":
             self.kubus_bak()
+            self.product_draai=0
         elif label == "Balk":
             self.balk_bak()
+            self.product_draai=0
         elif label == "Maan":
             self.maan_bak()
+            self.product_draai=90
         elif label == "Octagon":
             self.octagon_bak()
+            self.product_draai=0
         else:
             self.get_logger().warn(f"Onbekend label: {label}")
             
 
     def transorm_camxy_robot_xy(self):
         #translatie in mm
-        tx=290
-        ty=290
+        tx=353.5
+        ty=293
         tz=0
 
             # --- rotatie ---
@@ -521,7 +526,7 @@ class Controller(Node):
         z_robot = self.hoogte_mm + tz
 
         #rotatie object toepassen
-        robot_rotatie=self.rotatie_deg+135
+        robot_rotatie=self.rotatie_deg+135+self.product_draai
         
         cordinaten_product={
             'x':x_robot,
