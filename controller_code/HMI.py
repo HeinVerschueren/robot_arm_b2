@@ -1,4 +1,4 @@
-from numpy import int32
+from std_msgs.msg import Int16
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
@@ -13,6 +13,8 @@ from cv_bridge import CvBridge
 from std_srvs.srv import Trigger
 from std_msgs.msg import Int32MultiArray
 import threading
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.callback_groups import ReentrantCallbackGroup
 
 class HMI(Node):
     def __init__(self):
@@ -21,6 +23,7 @@ class HMI(Node):
         self.balk_tel = 0
         self.maan_tel = 0
         self.octagon_tel = 0
+        self.global_voice=False
 
         self.publisher_start_stop = self.create_publisher(
            Bool,    #bool for start and stop button
@@ -70,10 +73,15 @@ class HMI(Node):
         )
 
 ################# service
+        self.callback_group = ReentrantCallbackGroup()
+        self.my_executor = MultiThreadedExecutor()   # eerst aanmaken
+        self.my_executor.add_node(self)              # dan pas toevoegen
+
         self.product_keuze_service = self.create_service(
             Trigger,    
              'product_keuze',   #send to /product_keuze
-            self.product_keuze_callback   #backlog of msg to send
+            self.product_keuze_callback,   #backlog of msg to send
+            callback_group=self.callback_group
         )
 ####################### subscriber ###########################
         self.bridge = CvBridge()
@@ -84,6 +92,7 @@ class HMI(Node):
            '/camera_image_raw',
             self.Image_callback,
            10,
+            callback_group=self.callback_group
         )
 
         self.gripper_status_subscriber = self.create_subscription(
@@ -98,6 +107,7 @@ class HMI(Node):
             '/robot_status',
             self.robot_status_callback,
             10,
+            callback_group=self.callback_group
         )
 
         self.teller_subscriber = self.create_subscription(
@@ -105,6 +115,14 @@ class HMI(Node):
             '/teller',
             self.teller_callback,
             10,
+        )
+
+        self.voice_command_sub=self.create_subscription(
+            Int16,
+            '/voice_command',
+            self.voice_commando_call,
+            10,
+            callback_group=self.callback_group
         )
 ######################## window with buttons and such  ###################
 
@@ -321,7 +339,7 @@ class HMI(Node):
 ############ end init #########################
     def ros_thread(self):
         while rclpy.ok():
-            rclpy.spin_once(self, timeout_sec=0.01)
+            self.my_executor.spin_once(timeout_sec=0.01)
 
     def run(self):
         threading.Thread(
@@ -364,6 +382,7 @@ class HMI(Node):
     def voice_on(self):   #publish voice command
         msg=Bool()
         msg.data=self.checkbox_voice_on.get()
+        self.global_voice=msg.data
         self.publisher_voice_on.publish(msg)
 
     def snelheid_zendt(self):
@@ -473,6 +492,26 @@ class HMI(Node):
         self.tree.delete(*self.tree.get_children()) #verwijder oude waarden van tabel
         self.tree.insert("", tk.END, values=
         (self.kubus_tel, self.balk_tel, self.maan_tel, self.octagon_tel)) #hoeveelheid in kol
+
+    def voice_commando_call(self,msg):
+        if self.global_voice==True:
+            commando=msg.data
+            if commando==0:
+                self.start()
+            elif commando==1:
+                self.stop()
+
+            if self.keuze_active==True:
+                if commando==2:
+                    self.root.after(0, lambda: self.keuze_gemaakt("kubus"))
+                elif commando == 3:
+                    self.root.after(0, lambda: self.keuze_gemaakt("balk"))
+                elif commando == 4:
+                    self.root.after(0, lambda: self.keuze_gemaakt("maan"))
+                elif commando == 5:
+                    self.root.after(0, lambda: self.keuze_gemaakt("octagon"))
+                
+
     
     def product_keuze_callback(self, request, response):
        self.keuze_event.clear()
