@@ -285,7 +285,7 @@ class Controller(Node):
             if self.cam_ready==True and self.robot_ready==True:
                 self.start_robot_publisher.publish(Bool(data=True))
             else:
-                pass
+                self.get_logger().warn(f"Start genegeerd: cam_ready={self.cam_ready}, robot_ready={self.robot_ready}")
         elif self.start_stop==False:
             self.stop_robot_publisher.publish(Bool(data=True))
         else:
@@ -340,14 +340,11 @@ class Controller(Node):
             'hoogte_mm':   msg.z,
             'rotatie_deg': msg.rotatie,
         }
-        if self.object_resultaat is None:
-            self.object_resultaat = [resultaat]
-        else:
-            for i, obj in enumerate(self.object_resultaat):
-                if obj['LABELS'] == msg.klasse:
-                    self.object_resultaat[i] = resultaat
-                    return
-            self.object_resultaat.append(resultaat)
+        for i, obj in enumerate(self.object_resultaat):
+            if obj['LABELS'] == msg.klasse:
+                self.object_resultaat[i] = resultaat
+                return
+        self.object_resultaat.append(resultaat)
 
     def handshake_callback(self, msg):  #robot klaar voor opstarten
         self.robot_ready = msg.data
@@ -359,10 +356,10 @@ class Controller(Node):
         self.robot_status="error"
         self.robot_status_verzenden()
     
-    def cycle_complete_callback(self, msg):
-        self.tekst = msg.data
+    def cycle_complete_callback(self, _msg):
         if self.automate==False or self.start_stop==False:
             self.robot_status="stand-by"
+            self.robot_status_verzenden()
 
     def call_call_for_product(self,request,response):
         self.product_response=response
@@ -454,6 +451,7 @@ class Controller(Node):
                     break  # eerste match is genoeg
 
             if match:
+                self.object_resultaat = [o for o in self.object_resultaat if o["LABELS"] != match["LABELS"]]
                 self._stuur_bak(match["LABELS"])
                 self._stel_coordinaten_in(match)
                 self.transorm_camxy_robot_xy()
@@ -467,6 +465,7 @@ class Controller(Node):
         #  Automatisch: pak altijd het eerste object uit de lijst
             if data_keuze:
                 obj = data_keuze[0]
+                self.object_resultaat = [o for o in self.object_resultaat if o["LABELS"] != obj["LABELS"]]
                 self._stuur_bak(obj["LABELS"])
                 self._stel_coordinaten_in(obj)
                 self.transorm_camxy_robot_xy()
@@ -495,7 +494,7 @@ class Controller(Node):
             self.product_draai=0
         elif label == "Maan":
             self.maan_bak()
-            self.product_draai=90
+            self.product_draai=0
         elif label == "Octagon":
             self.octagon_bak()
             self.product_draai=0
@@ -505,8 +504,8 @@ class Controller(Node):
 
     def transorm_camxy_robot_xy(self):
         #translatie in mm
-        tx=353.5
-        ty=293
+        tx=356.5
+        ty=298
         tz=0
 
             # --- rotatie ---
@@ -531,7 +530,7 @@ class Controller(Node):
         cordinaten_product={
             'x':x_robot,
             'y':y_robot,
-            'z':z_robot,
+            'z':80,
             'x_rotatie':0,
             'y_rotatie':0,
             'z_rotatie':robot_rotatie}

@@ -1,5 +1,4 @@
-import numpy as np
-from numpy import int32
+from std_msgs.msg import Int16
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
@@ -14,6 +13,8 @@ from cv_bridge import CvBridge
 from std_srvs.srv import Trigger
 from std_msgs.msg import Int32MultiArray
 import threading
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.callback_groups import ReentrantCallbackGroup
 
 class HMI(Node):
     def __init__(self):
@@ -22,6 +23,7 @@ class HMI(Node):
         self.balk_tel = 0
         self.maan_tel = 0
         self.octagon_tel = 0
+        self.global_voice=False
 
         self.publisher_start_stop = self.create_publisher(
            Bool,    #bool for start and stop button
@@ -71,10 +73,15 @@ class HMI(Node):
         )
 
 ################# service
+        self.callback_group = ReentrantCallbackGroup()
+        self.my_executor = MultiThreadedExecutor()   # eerst aanmaken
+        self.my_executor.add_node(self)              # dan pas toevoegen
+
         self.product_keuze_service = self.create_service(
             Trigger,    
              'product_keuze',   #send to /product_keuze
-            self.product_keuze_callback   #backlog of msg to send
+            self.product_keuze_callback,   #backlog of msg to send
+            callback_group=self.callback_group
         )
 ####################### subscriber ###########################
         self.bridge = CvBridge()
@@ -105,6 +112,13 @@ class HMI(Node):
             Int32MultiArray,
             '/teller',
             self.teller_callback,
+            10,
+        )
+
+        self.voice_command_sub=self.create_subscription(
+            Int16,
+            '/voice_command',
+            self.voice_commando_call,
             10,
         )
 ######################## window with buttons and such  ###################
@@ -141,7 +155,6 @@ class HMI(Node):
         self.maan_button = tk.Button(  #make button
             self.root, #put it in window
             text="Maan", #text on the button
-            state="disabled",
             command=lambda:   ##do function when activated
             self.keuze_gemaakt("Maan")
             ) 
@@ -150,7 +163,6 @@ class HMI(Node):
         self.kubus_button = tk.Button(  #make button
             self.root, #put it in window
             text="Kubus", #text on the button
-            state="disabled",
             command=lambda:   #do function when activated
             self.keuze_gemaakt("Kubus")  #wait for user to make choice
             ) 
@@ -159,7 +171,6 @@ class HMI(Node):
         self.balk_button = tk.Button(  #make button
             self.root, #put it in window
             text="Balk", #text on the button
-            state="disabled",
             command=lambda:   #do function when activated
             self.keuze_gemaakt("Balk")  #wait for user to make choice
             ) 
@@ -168,7 +179,6 @@ class HMI(Node):
         self.octagon_button = tk.Button(  #make button
             self.root, #put it in window
             text="Octagon", #text on the button
-            state="disabled",
             command=lambda:   #do function when activated
             self.keuze_gemaakt("Octagon")
             ) 
@@ -277,7 +287,7 @@ class HMI(Node):
         self.status_label_robot.grid(row=1, column=2, padx=20, pady=5, sticky="n")
 
         self.keuze_Status = tk.StringVar()
-        self.keuze_Status.set("wacht op controller")
+        self.keuze_Status.set("bezig")
 
         self.status_label_keuze = tk.Label( #keuze status label
             self.root,
@@ -289,7 +299,7 @@ class HMI(Node):
         self.status_label_keuze.grid(row=2, column=2, padx=20, pady=5, sticky="n")
 
         self.snelheid_Status = tk.StringVar()
-        self.snelheid_Status.set("snelheid:50%")
+        self.snelheid_Status.set("snelheid:20%")
 
         self.status_label_snelheid = tk.Label( #snelheid status label
             self.root,
@@ -325,16 +335,16 @@ class HMI(Node):
 
 ############ end init #########################
     def ros_thread(self):
-        while rclpy.ok():  #hmi en ros2 uit elkaar anders blokeren ze elkaar
-            rclpy.spin_once(self, timeout_sec=0.01)
+        while rclpy.ok():
+            self.my_executor.spin_once(timeout_sec=0.01)
 
     def run(self):
-        threading.Thread(  #zorg dat ros runnend
+        threading.Thread(
             target=self.ros_thread,
             daemon=True
         ).start()
 
-        self.root.mainloop()  #zorgt dat hmi verschijnt en werkt
+        self.root.mainloop()
 
 ####### knoppen functies ############
     def close(self):  #stopt alles
@@ -369,34 +379,35 @@ class HMI(Node):
     def voice_on(self):   #publish voice command
         msg=Bool()
         msg.data=self.checkbox_voice_on.get()
+        self.global_voice=msg.data
         self.publisher_voice_on.publish(msg)
 
     def snelheid_zendt(self):
-        raw_snelheid=self.number_var_snelheid.get()  #pakt snelheid uit invoervlak
-        check_snelheid=float(raw_snelheid) #zorg dat snelheid niet ongeldige waarde heeft
+        raw_snelheid=self.number_var_snelheid.get()
+        check_snelheid=float(raw_snelheid)
         if check_snelheid > 100:
             snelheid=100
         elif check_snelheid < 0:
             snelheid=0
         else:
             snelheid=check_snelheid
-        snelheid_float=float(snelheid) #zorg ervoor dat het zeker een float is
+        snelheid_float=float(snelheid)
         msg=Float32()
         msg.data=snelheid_float
         self.snelheid_bezig(snelheid_float)
         self.publisher_snelheid.publish(msg)
 
     def threshold_zendt(self):
-        raw_threshold=self.number_var_threshold.get()#krijg uit invoervlak
+        raw_threshold=self.number_var_threshold.get()
         check_threshold=float(raw_threshold)
-        if check_threshold > 100:#geen ongeldig waarde
+        if check_threshold > 100:
             threshold=100
         elif check_threshold < 0:
             threshold=0
         else: 
             threshold=check_threshold
-        threshold_float=float(threshold)  #zeker een float
-        msg=Float32()  
+        threshold_float=float(threshold)
+        msg=Float32()
         msg.data=threshold_float
         self.threshold_bezig(threshold_float)
         self.publisher_threshold.publish(msg)  
@@ -450,7 +461,7 @@ class HMI(Node):
     def Image_callback(self, msg):
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         self.latest_frame = frame
-        self.root.after(0, self.update_camera) #zorg voor beeld update in hmi
+        self.root.after(0, self.update_camera)
 
     def gripper_status_callback(self, msg):
         gripper=msg.data
@@ -478,6 +489,26 @@ class HMI(Node):
         self.tree.delete(*self.tree.get_children()) #verwijder oude waarden van tabel
         self.tree.insert("", tk.END, values=
         (self.kubus_tel, self.balk_tel, self.maan_tel, self.octagon_tel)) #hoeveelheid in kol
+
+    def voice_commando_call(self,msg):
+        if self.global_voice==True:
+            commando=msg.data
+            if commando==0:
+                self.start()
+            elif commando==1:
+                self.stop()
+
+            if self.keuze_active==True:
+                if commando==2:
+                    self.root.after(0, lambda: self.keuze_gemaakt("kubus"))
+                elif commando == 3:
+                    self.root.after(0, lambda: self.keuze_gemaakt("balk"))
+                elif commando == 4:
+                    self.root.after(0, lambda: self.keuze_gemaakt("maan"))
+                elif commando == 5:
+                    self.root.after(0, lambda: self.keuze_gemaakt("octagon"))
+                
+
     
     def product_keuze_callback(self, request, response):
        self.keuze_event.clear()
@@ -492,25 +523,23 @@ class HMI(Node):
        
        return self.keuze_response
     
-    def enable_keuze_knoppen(self): #zorg dat je knoppen kunt induwen
+    def enable_keuze_knoppen(self):
         self.maan_button.config(state="normal")
         self.octagon_button.config(state="normal")
         self.balk_button.config(state="normal")
         self.kubus_button.config(state="normal")
 
-    def keuze_gemaakt(self, keuze):  #keuze product terug sturen
-        if not self.keuze_active:  #als niet actief
-            self.keuze_Status.set("Geen keuze actief")
-            self.status_label_keuze.config(bg="red")
-            return
+    def keuze_gemaakt(self, keuze):
+        if not self.keuze_active:
+           return
 
-        self.keuze_response.success = True  #geef success terug met gekozen product
+        self.keuze_response.success = True
         self.keuze_response.message = keuze
 
         self.keuze_active = False
         self.keuze_event.set()
 
-        self.maan_button.config(state="disabled")  #disable knoppen
+        self.maan_button.config(state="disabled")
         self.octagon_button.config(state="disabled")
         self.balk_button.config(state="disabled")
         self.kubus_button.config(state="disabled")
@@ -519,27 +548,16 @@ class HMI(Node):
     def update_camera(self):
         if self.latest_frame is None:
             return
-
-        image_1 = Image.fromarray(self.latest_frame)
-
-        if isinstance(image_1, Image.Image):
-            image_1 = cv2.cvtColor(np.array(image_1), cv2.COLOR_RGB2BGR)
-
-        if not isinstance(image_1, np.ndarray):
-            print("update_camera: unexpected frame type:", type(image_1))
-            return
-
         try:
-            image_size = cv2.resize(image_1, (640, 480))
+            frame_rgb = cv2.cvtColor(self.latest_frame, cv2.COLOR_BGR2RGB)
+            frame_resized = cv2.resize(frame_rgb, (640, 480))
+            photo = ImageTk.PhotoImage(Image.fromarray(frame_resized))
+            self.camera_label.config(image=photo)
+            self.camera_label.image = photo
         except Exception as e:
-            print("update_camera: resize failed:", e)
-            return
+            print("update_camera error:", e)
 
-        image_pil = Image.fromarray(image_size)
-        photo = ImageTk.PhotoImage(image_pil)
-        self.camera_label.config(image=photo)
-        self.camera_label.image = photo
-
+        
 
 def main():
     rclpy.init()

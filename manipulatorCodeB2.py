@@ -271,7 +271,7 @@ class manipulatorController(Node):
             self.transfer_translation = [
                 data["x"] / 1000.0,
                 data["y"] / 1000.0,
-                0.08
+                data["z"] / 1000.0
             ]
 
             q = tf_transformations.quaternion_from_euler(
@@ -336,43 +336,40 @@ class manipulatorController(Node):
     
 
     
+    def safe_move_to_state(self, state_name, retries=3):
+
+        result, joint_values = self.group_states.get_joint_values(state_name)
+
+        for attempt in range(retries):
+
+            self.move_group.moveit2.move_to_configuration(joint_values)
+
+            success = self.move_group.moveit2.wait_until_executed()
+
+            if success:
+                return True
+
+            self.get_logger().warn(f"Poging {attempt+1} mislukt")
+            time.sleep(0.2)
+
+        self.get_logger().error(f"{state_name} permanent mislukt")
+        return False
+
+
     def safe_move_to_pose(self, translation, rotation, retries=3):
 
         for attempt in range(retries):
 
-            self.get_logger().info(f"[SAFE POSE] attempt {attempt+1}/{retries}")
-
             self.move_to_pose(translation, rotation)
 
-            try:
-                self.move_group.moveit2.wait_until_executed()
-                self.get_logger().info("Pose motion finished")
+            if self.move_group.moveit2.motion_suceeded:
                 return True
 
-            except Exception as e:
-                self.get_logger().warn(f"Pose motion exception: {e}")
+            self.get_logger().warn(
+                f"Pose planning mislukt ({attempt+1}/{retries})"
+            )
+            time.sleep(0.2)
 
-        self.get_logger().error("Pose motion permanently failed")
-        return False
-
-
-    def safe_move_to_state(self, state_name, retries=3):
-
-        for attempt in range(retries):
-
-            self.get_logger().info(f"[SAFE STATE] {state_name} attempt {attempt+1}/{retries}")
-
-            self.move_to_state(state_name)
-
-            try:
-                self.move_group.moveit2.wait_until_executed()
-                self.get_logger().info("Motion finished")
-                return True
-
-            except Exception as e:
-                self.get_logger().warn(f"Motion exception: {e}")
-
-        self.get_logger().error(f"State {state_name} failed permanently")
         return False
 
 

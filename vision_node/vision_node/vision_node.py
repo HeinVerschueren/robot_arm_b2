@@ -324,8 +324,8 @@ class VisionNode(Node):
     # ------------------------------------------------------------------
     @staticmethod
     def _get_rotation(frame, x1, y1, x2, y2, margin=4):
-        #Berekent de rotatie in graden via minAreaRect op het grootste contour.
-        #Bereik: -45° … +45°. Geeft 0.0 terug bij mislukken.
+        #Berekent de rotatie van de LANGE as in graden via minAreaRect.
+        #Bereik: -90° … +90°. Geeft 0.0 terug bij mislukken.
         h, w = frame.shape[:2]
         roi = frame[max(0, y1-margin):min(h, y2+margin),
                     max(0, x1-margin):min(w, x2+margin)]
@@ -340,11 +340,10 @@ class VisionNode(Node):
         largest = max(contours, key=cv2.contourArea)
         if cv2.contourArea(largest) < 20:
             return 0.0
-        #Hoek van kleinste omsluitende rechthoek
+        #minAreaRect geeft altijd een negatieve hoek in (-90°, 0°].
+        #abs() converteert dit naar [0°, 90°]: de hoek van de lange as.
         _, _, angle = cv2.minAreaRect(largest)
-        if angle < -45:
-            angle += 90.0  #corrigeer naar leesbaar bereik
-        return round(angle, 1)
+        return round(abs(angle), 1)
 
     # ------------------------------------------------------------------
     def _get_centroid(self, frame, x1, y1, x2, y2, label='', margin=4):
