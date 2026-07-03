@@ -230,7 +230,7 @@
 	<!-- Toegevoegde camera stand -->
   <link name="camera_stand_link">
     <visual>
-      <origin xyz="0.405 0.32 0.25" rpy="0 0 0.785398" />
+      <origin xyz="0.27 0.34 0.25" rpy="0 0 1.570796" />
       <geometry>
         <box size="0.035 0.035 0.5" />
       </geometry>
@@ -240,7 +240,7 @@
       <xacro:box_inertia m="1" x="0.035" y="0.035" z="0.50"/>
     </inertial>
     <collision>
-      <origin xyz="0.405 0.32 0.25" rpy="0 0 0.785398" />
+      <origin xyz="0.27 0.34 0.25" rpy="0 0 1.570796" />
       <geometry>
         <box size="0.035 0.035 0.5" />
       </geometry>
@@ -257,9 +257,9 @@
 	<!-- Toegevoegde camera -->
   <link name="camera_link">
     <visual>
-      <origin xyz="0.3525 0.2675 0.35" rpy="0 0 0.785398" />
+      <origin xyz="0.29 0.265 0.35" rpy="0 0 1.570796" />
       <geometry>
-        <box size="0.105 0.105 0.06" />
+        <box size="0.11 0.11 0.07" />
       </geometry>
       <material name="LightGrey"/>
     </visual>
@@ -267,9 +267,9 @@
       <xacro:box_inertia m="1" x="0.105" y="0.105" z="0.06"/>
     </inertial>
     <collision>
-      <origin xyz="0.3525 0.2675 0.35" rpy="0 0 0.785398" />
+      <origin xyz="0.27 0.265 0.35" rpy="0 0 1.570796" />
       <geometry>
-        <box size="0.105 0.105 0.06" />
+        <box size="0.11 0.11 0.07" />
       </geometry>
     </collision>
   </link>
