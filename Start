@@ -1,0 +1,16 @@
+Launch file
+source ~/Github/robot_arm_b2/install/setup.bash
+ros2 launch ~/Documents/launch_robot.launch.py
+
+Vision
+source ~/Github/robot_arm_b2/install/setup.bash
+ros2 run vision_node vision_node
+
+hmi en controller
+source ~/Github/robot_arm_b2/install/setup.bash
+python3 ~/Github/robot_arm_b2/controller_code/controller.py
+python3 ~/Github/robot_arm_b2/controller_code/HMI.py
+
+manipulator
+source ~/Github/robot_arm_b2/install/setup.bash
+python3 ~/Github/robot_arm_b2/manipulatorCodeB2.py

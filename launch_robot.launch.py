@@ -54,22 +54,22 @@ def generate_launch_description():
         actions=[
             robot_launch,
             ExecuteProcess(
-                cmd=['python3', os.path.expanduser('~/Vision/robot_arm_b2/controller_code/controller.py')],
+                cmd=['python3', os.path.expanduser('~/Github/robot_arm_b2/controller_code/controller.py')],
                 output='screen'
             ),
             ExecuteProcess(
-                cmd=['python3', os.path.expanduser('~/Vision/robot_arm_b2/controller_code/HMI.py')],
+                cmd=['python3', os.path.expanduser('~/Github/robot_arm_b2/controller_code/HMI.py')],
                 output='screen'
             ),
             ExecuteProcess(
-                cmd=['python3', os.path.expanduser('~/Vision/robot_arm_b2/manipulatorCodeB2.py')],
+                cmd=['python3', os.path.expanduser('~/Github/robot_arm_b2/manipulatorCodeB2.py')],
                 output='screen'
             ),
         ]
     )
 
     return LaunchDescription([
-        vision_node,
-        microros_agent,
-        overige_nodes
+        vision_node,        
+        overige_nodes,
+        microros_agent
     ])

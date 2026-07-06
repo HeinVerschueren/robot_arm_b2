@@ -405,8 +405,10 @@ class manipulatorController(Node):
                     self.start_signal = False
 
                     if not self.safe_move_to_state("right"):
-                        self.state = RobotState.HOME
-                        return
+                        self.publish_error()
+                        self.safe_move_to_state("home")
+                        self.state = RobotState.wachtOpStart
+                        continue
                     self.state = RobotState.wachtOpTransferFrame
 
             # ---------------- Wacht op transferframe----------------
@@ -475,7 +477,7 @@ class manipulatorController(Node):
             elif self.state == RobotState.MOVE_OVER:
                 
                 #for state in ["home", "left"]:
-                self.move_to_pose(translation=[0.20, 0.25, 0.20], 
+                self.move_to_pose(translation=[0.20, 0.20, 0.20], 
                                   rotation=[1, 0, 0, 0])
                 time.sleep(0.1)
                 self.move_to_state("right")
